@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "Music Match",
+    "slug": "music-match",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0d0e0c",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Music Match uses your location to show creatives near you.",
+        "NSPhotoLibraryUsageDescription": "Choose photos and videos to share on your profile, in posts and in messages.",
+        "NSCameraUsageDescription": "Take photos to share on your profile, in posts and in messages.",
+        "NSMicrophoneUsageDescription": "Record video with sound to share in posts and messages."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0d0e0c",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0d0e0c",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220
+        }
+      ]
+    ]
+  }
+}

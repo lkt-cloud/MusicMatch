@@ -88,6 +88,8 @@ function Thread({ withId }: { withId: string }) {
   const [dragging, setDragging] = useState(false);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  // On touch screens there's no hover, so tapping a message reveals its delete button.
+  const [picked, setPicked] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -205,8 +207,8 @@ function Thread({ withId }: { withId: string }) {
           return (
             <div key={m.id}>
               {gap && <div className="thread-time">{timeAgo(m.at)}</div>}
-              <div className={`msg${mine ? ' mine' : ''}`}>
-                <div className="msg-stack">
+              <div className={`msg${mine ? ' mine' : ''}${picked === m.id ? ' is-picked' : ''}`}>
+                <div className="msg-stack" onClick={() => setPicked((p) => (p === m.id ? null : m.id))}>
                   {files.length > 0 && (
                     <div className={`msg-files${files.every((f) => f.kind === 'image') && files.length > 1 ? ' is-grid' : ''}`}>
                       {files.map((f) => (

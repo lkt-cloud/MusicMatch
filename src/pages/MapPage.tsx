@@ -316,7 +316,7 @@ export function MapPage() {
               {place}
             </strong>
             <span className="muted small">
-              {featuredTop.length + listed.length} creatives in view
+              {featuredTop.length + listed.length} {featuredTop.length + listed.length === 1 ? 'creative' : 'creatives'} in view
             </span>
           </span>
           <span className="panel-toggle">

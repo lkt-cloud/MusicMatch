@@ -75,8 +75,11 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
               </span>
             )}
             <div className="muted">
-              <RoleLine person={p} /> · <Icon name="pin" size={14} /> {p.city && `${p.city}, `}
-              {flag(p.country)} {countryName(p.country)}
+              <RoleLine person={p} /> ·{' '}
+              <span className="nowrap">
+                <Icon name="pin" size={14} /> {p.city && `${p.city}, `}
+                {flag(p.country)} {countryName(p.country)}
+              </span>
               {away != null && <> · {formatMiles(away)} away</>}
             </div>
           </div>

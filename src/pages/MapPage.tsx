@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { geoDistance } from 'd3-geo';
 import { FlatEarth } from '../map/FlatEarth';
 import { Globe } from '../map/Globe';
-import { EARTH_RADIUS_MI, LOCAL_ZOOM, MAX_ZOOM, formatMiles, milesBetween, reaches, type EarthHandle, type View } from '../map/shared';
+import { EARTH_RADIUS_MI, LOCAL_ZOOM, MAX_ZOOM, formatDistance, formatRadius, milesBetween, reaches, type EarthHandle, type View } from '../map/shared';
 import { ActiveFilters, FilterPanel, NO_FILTERS, countFilters, matches, type Filters } from '../components/MapFilters';
 import { CITY_NAMES, cityCoords } from '../data/creatives';
 import { hasRole, roleInfo, rolesOf } from '../data/roles';
@@ -14,6 +14,7 @@ import { RoleLine } from '../components/RoleBadge';
 import { CreativeRow } from '../components/CreativeRow';
 import { splitPromoted, usePromotionFlags } from '../backend/promotions';
 import { Compass } from '../components/Compass';
+import { getSettings } from '../settings';
 import { Icon } from '../components/Icon';
 import { SocialLinks } from '../components/SocialLinks';
 import { GenreChips } from '../components/Genres';
@@ -50,7 +51,8 @@ export function MapPage() {
   // Ask for location once when the map opens. If it's refused or unavailable (e.g. not on
   // https), the map simply stays on the location set in your profile.
   useEffect(() => {
-    if (focused || !navigator.geolocation) return;
+    // Settings → "Find me when the map opens" can turn this off; the locate button still works.
+    if (focused || !navigator.geolocation || !getSettings().locateOnOpen) return;
     let live = true;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -274,7 +276,7 @@ export function MapPage() {
                 )}
                 <div className="muted small">
                   <RoleLine person={selected} /> · {selected.city}
-                  {located && <> · {formatMiles(milesBetween(me.coords, selected.coords))}</>}
+                  {located && <> · {formatDistance(milesBetween(me.coords, selected.coords))}</>}
                 </div>
               </div>
             </div>
@@ -286,7 +288,7 @@ export function MapPage() {
             )}
             {selected.travelMiles != null && (
               <p className="preview-place small">
-                <Icon name="radius" size={15} /> Travels up to {selected.travelMiles} mi
+                <Icon name="radius" size={15} /> Travels up to {formatRadius(selected.travelMiles)}
                 {located && reaches(selected, me.coords) && <span className="tag-good">reaches you</span>}
               </p>
             )}
@@ -347,7 +349,7 @@ export function MapPage() {
               person={c}
               active={c.id === selectedId}
               onClick={() => focus(c)}
-              meta={located ? formatMiles(milesBetween(me.coords, c.coords)) : undefined}
+              meta={located ? formatDistance(milesBetween(me.coords, c.coords)) : undefined}
             />
           ))}
         </div>

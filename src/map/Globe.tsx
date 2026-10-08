@@ -6,6 +6,7 @@ import { DETAIL_ZOOM, useMapDetail } from './detail/useMapDetail';
 import { DetailLabels } from './detail/DetailLabels';
 import { drawDetail } from './detail/draw';
 import { useMapGestures, type Point } from './gestures';
+import { getSettings } from '../settings';
 import { COARSE, DETAILED, MAX_ZOOM, STATE_LINES, borderOpacity, landColorAt, radiusCircle, stateOpacity, type EarthProps } from './shared';
 
 // The globe's `k` is its scale relative to fitting the viewport. Zoom levels shared
@@ -106,6 +107,7 @@ export function Globe({ creatives, me, selectedId, onSelect, onViewChange, initi
   });
 
   const animate = (target: GlobeView, ms: number) => {
+    if (getSettings().reduceMotion) ms = 1; // Settings → Reduce motion
     if (anim.current) cancelAnimationFrame(anim.current);
     const from = viewRef.current;
     const travel = geoDistance(from.center, target.center);

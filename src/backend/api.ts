@@ -288,3 +288,28 @@ export async function startCheckout(type: PromotionType, postId?: string) {
 export async function cancelPromotion(promotionId: string) {
   await callFunction('cancel-promotion', { promotionId });
 }
+
+// ------------------------------------------------------------------ account (Settings)
+
+/** The signed-in person's email address. */
+export async function currentEmail() {
+  const { data } = await db().auth.getUser();
+  return data.user?.email ?? null;
+}
+
+/** Sends a confirmation link to the new address; the change happens when it's clicked. */
+export async function changeEmail(email: string) {
+  const { error } = await db().auth.updateUser({ email }, { emailRedirectTo: `${window.location.origin}/settings` });
+  if (error) throw error;
+}
+
+export async function changePassword(password: string) {
+  const { error } = await db().auth.updateUser({ password });
+  if (error) throw error;
+}
+
+/** Deletes the account and everything in it (subscriptions are cancelled first), then signs out. */
+export async function deleteAccount() {
+  await callFunction('delete-account', {});
+  await db().auth.signOut({ scope: 'local' });
+}

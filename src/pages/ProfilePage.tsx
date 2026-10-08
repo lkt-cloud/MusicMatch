@@ -6,7 +6,7 @@ import { PLATFORMS, normalizeSocialUrl, platformInfo } from '../data/socials';
 import type { Creative, Role, SocialPlatform } from '../data/types';
 import { useStore } from '../store';
 import { SignInPrompt } from '../components/SignInPrompt';
-import { formatMiles, milesBetween, reaches } from '../map/shared';
+import { formatDistance, formatRadius, milesBetween, reaches } from '../map/shared';
 import { Avatar } from '../components/Avatar';
 import { RoleLine } from '../components/RoleBadge';
 import { Icon, RoleIcon } from '../components/Icon';
@@ -55,6 +55,11 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
   return (
     <div className="page profile">
       <section className="card profile-card">
+        {mine && (
+          <Link to="/settings" className="icon-btn profile-gear" aria-label="Settings">
+            <Icon name="settings" size={20} />
+          </Link>
+        )}
         <div style={{ ['--role' as string]: color }}>
           <ProfileCover person={p} editable={mine && editing}>
           </ProfileCover>
@@ -80,7 +85,7 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
                 <Icon name="pin" size={14} /> {p.city && `${p.city}, `}
                 {flag(p.country)} {countryName(p.country)}
               </span>
-              {away != null && <> · {formatMiles(away)} away</>}
+              {away != null && <> · {formatDistance(away)} away</>}
             </div>
           </div>
           <div className="profile-actions">
@@ -281,7 +286,7 @@ function LocationInfo({ person: p, me, mine, located }: { person: Creative; me: 
           <div>
             <span className="stat-label">Travel radius</span>
             <strong>
-              Up to {p.travelMiles} miles from {p.city}
+              Up to {formatRadius(p.travelMiles)} from {p.city}
             </strong>
             {!mine && located && reaches(p, me.coords) && <span className="tag-good">Can come to you</span>}
           </div>
@@ -459,7 +464,7 @@ function RatesEditor() {
 }
 
 /** Whether your pin shows just your city (the default) or an exact spot. */
-function MapSpot() {
+export function MapSpot() {
   const { me, updateMe } = useStore();
   const [status, setStatus] = useState<'idle' | 'locating' | 'denied' | 'error'>('idle');
   const exact = !!me.exactLocation;
@@ -562,7 +567,7 @@ function TravelRadius() {
     <div className="wide radius-field">
       <div className="radius-top">
         <span>How far will you travel for a session?</span>
-        <strong>{miles >= 500 ? 'Anywhere' : `${miles} mi`}</strong>
+        <strong>{miles >= 500 ? 'Anywhere' : formatRadius(miles)}</strong>
       </div>
       <input
         type="range"
@@ -577,7 +582,7 @@ function TravelRadius() {
       <div className="chips">
         {RADIUS_PRESETS.map((m) => (
           <button key={m} type="button" className={`chip${miles === m ? ' is-on' : ''}`} onClick={() => updateMe({ travelMiles: m })}>
-            {m} mi
+            {formatRadius(m)}
           </button>
         ))}
       </div>

@@ -16,18 +16,23 @@ const ACCENT = '#e2b04a';
 /** Pages that belong inside the app; everything else opens outside it. */
 const isOurs = (url: string) => url.startsWith(SITE) || url.startsWith('about:') || url.startsWith('data:') || url.startsWith('blob:');
 
+type Look = { theme: 'dark' | 'light'; background: string };
+
 export default function App() {
+  // The site tells us when it switches between dark and light (Settings → Appearance), so the
+  // status bar and the edges around the page match it.
+  const [look, setLook] = useState<Look>({ theme: 'dark', background: BG });
   return (
     <SafeAreaProvider>
-      <StatusBar style="light" />
-      <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-        <Site />
+      <StatusBar style={look.theme === 'dark' ? 'light' : 'dark'} />
+      <SafeAreaView style={[styles.screen, { backgroundColor: look.background }]} edges={['top', 'bottom']}>
+        <Site onLook={setLook} />
       </SafeAreaView>
     </SafeAreaProvider>
   );
 }
 
-function Site() {
+function Site({ onLook }: { onLook: (look: Look) => void }) {
   const web = useRef<WebView>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -79,6 +84,15 @@ function Site() {
         originWhitelist={['https://*', 'about:*', 'data:*', 'blob:*']}
         onShouldStartLoadWithRequest={shouldLoad}
         onNavigationStateChange={onNavigation}
+        onMessage={(e) => {
+          try {
+            const msg = JSON.parse(e.nativeEvent.data) as { type?: string } & Partial<Look>;
+            if (msg.type === 'theme' && (msg.theme === 'dark' || msg.theme === 'light') && msg.background)
+              onLook({ theme: msg.theme, background: msg.background });
+          } catch {
+            // not one of ours
+          }
+        }}
         onLoadEnd={() => setLoading(false)}
         onError={() => setFailed(true)}
         // Lets the site tell it's running inside the app.

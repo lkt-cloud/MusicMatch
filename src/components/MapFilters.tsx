@@ -1,7 +1,7 @@
 import { GENRES, genreInfo } from '../data/genres';
 import { ROLES, roleInfo, rolesOf } from '../data/roles';
 import type { Creative, Role } from '../data/types';
-import { milesBetween, reaches } from '../map/shared';
+import { formatRadius, milesBetween, reaches } from '../map/shared';
 import { useStore } from '../store';
 import { Icon, RoleIcon } from './Icon';
 
@@ -79,7 +79,7 @@ export function FilterPanel({
       {located && <section className="filter-section">
         <div className="filter-label">
           <span><Icon name="radius" size={16} /> Distance from you</span>
-          <strong>{value.miles == null ? 'Anywhere' : `Within ${value.miles} mi`}</strong>
+          <strong>{value.miles == null ? 'Anywhere' : `Within ${formatRadius(value.miles)}`}</strong>
         </div>
         <input
           type="range"
@@ -94,10 +94,10 @@ export function FilterPanel({
           style={{ ['--pct' as string]: `${(stop / STOPS.length) * 100}%` }}
           className="range-input"
           aria-label="Distance from you"
-          aria-valuetext={value.miles == null ? 'Anywhere' : `${value.miles} miles`}
+          aria-valuetext={value.miles == null ? 'Anywhere' : formatRadius(value.miles)}
         />
         <div className="range-scale small muted">
-          <span>1 mi</span>
+          <span>{formatRadius(1)}</span>
           <span>from {me.city || 'you'}</span>
           <span>Anywhere</span>
         </div>
@@ -185,7 +185,7 @@ export function ActiveFilters({ value, onChange }: { value: Filters; onChange: (
     <div className="active-filters">
       {value.miles != null && (
         <button className="pill range-pill" onClick={() => set({ miles: null })}>
-          <Icon name="radius" size={13} /> Within {value.miles} mi <Icon name="close" size={11} />
+          <Icon name="radius" size={13} /> Within {formatRadius(value.miles)} <Icon name="close" size={11} />
         </button>
       )}
       {value.roles.map((r) => (

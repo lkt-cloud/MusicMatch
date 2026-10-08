@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../backend/client';
+import { keepSignedIn, setKeepSignedIn, supabase } from '../backend/client';
 import { LogoMark } from '../components/LogoMark';
 import { Icon } from '../components/Icon';
 
@@ -15,12 +15,14 @@ export function AuthPage({ reason, onClose }: { reason?: string; onClose?: () =>
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [remember, setRemember] = useState(keepSignedIn);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError(null);
     setNotice(null);
+    setKeepSignedIn(remember);
     if (mode === 'signup') {
       const { data, error } = await supabase!.auth.signUp({
         email,
@@ -54,7 +56,9 @@ export function AuthPage({ reason, onClose }: { reason?: string; onClose?: () =>
 
   return (
     <div className={`auth${onClose ? ' is-modal' : ''}`} onMouseDown={(e) => onClose && e.target === e.currentTarget && onClose()}>
-      <form className="auth-card" onSubmit={submit} role={onClose ? 'dialog' : undefined} aria-modal={onClose ? true : undefined} aria-label="Sign in">
+      {/* method/action and the autocomplete names let iPhone, Android and browser password
+          managers offer to save the login and fill it in next time. */}
+      <form className="auth-card" onSubmit={submit} method="post" action="#" role={onClose ? 'dialog' : undefined} aria-modal={onClose ? true : undefined} aria-label="Sign in">
         {onClose && (
           <button type="button" className="icon-btn ghost auth-close" onClick={onClose} aria-label="Close">
             <Icon name="close" size={18} />
@@ -71,17 +75,30 @@ export function AuthPage({ reason, onClose }: { reason?: string; onClose?: () =>
         {mode === 'signup' && (
           <label>
             <span>Name or artist name</span>
-            <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} autoComplete="name" />
+            <input name="name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} autoComplete="name" />
           </label>
         )}
         <label>
           <span>Email</span>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
+          <input
+            type="email"
+            name="email"
+            id="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            inputMode="email"
+          />
         </label>
         <label>
           <span>Password</span>
           <input
             type="password"
+            name="password"
+            id="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -90,12 +107,27 @@ export function AuthPage({ reason, onClose }: { reason?: string; onClose?: () =>
           />
         </label>
 
+        <label className="check auth-remember">
+          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+          <span>Keep me signed in on this device</span>
+        </label>
+
         {error && <p className="field-note is-bad">{error}</p>}
         {notice && <p className="field-note is-good">{notice}</p>}
 
         <button className="btn primary block" disabled={busy}>
           {busy ? 'One moment…' : mode === 'signin' ? 'Sign in' : 'Create account'}
         </button>
+
+        {mode === 'signup' && (
+          <p className="auth-legal">
+            By creating an account you agree to the{' '}
+            <a href="/terms" target="_blank" rel="noopener">
+              Terms of Service
+            </a>
+            .
+          </p>
+        )}
 
         <div className="auth-links">
           {mode === 'signin' ? (

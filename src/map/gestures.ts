@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { getSettings } from '../settings';
 
 // One gesture engine for both maps, built on pointer events so it behaves the same with a
 // mouse, a trackpad and fingers:
@@ -89,6 +90,7 @@ export function useMapGestures(target: React.RefObject<HTMLElement | null>, hand
 
     /** After letting go: keep gliding (and spinning) in the direction you flicked, slowing down. */
     const glide = () => {
+      if (getSettings().reduceMotion) return end(); // Settings → Reduce motion: just stop
       const last = samples[samples.length - 1];
       const first = samples[0];
       const dt = last && first ? last.t - first.t : 0;
@@ -275,6 +277,12 @@ export function useMapGestures(target: React.RefObject<HTMLElement | null>, hand
 
 /** Runs `frame(e)` with an eased 0→1 over `ms`; returns a cancel function. */
 export function tween(ms: number, frame: (e: number) => void, done?: () => void) {
+  if (getSettings().reduceMotion) {
+    // Settings → Reduce motion: jump straight there.
+    frame(1);
+    done?.();
+    return () => undefined;
+  }
   const t0 = performance.now();
   let raf = 0;
   const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);

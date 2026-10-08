@@ -6,6 +6,7 @@ import world50 from 'world-atlas/countries-50m.json';
 import world110 from 'world-atlas/countries-110m.json';
 import subdivisions from '../data/subdivisions.json';
 import type { Creative } from '../data/types';
+import { getSettings } from '../settings';
 
 /**
  * Zoom that frames roughly 80 miles around a point: your city plus its neighbours.
@@ -120,4 +121,14 @@ export const isExact = (c: Pick<Creative, 'address' | 'exactLocation'>) => !!c.a
 /** For people who only share their city: the area they could be anywhere in, shown on hover. */
 export const CITY_AREA_MILES = 12;
 
-export const formatMiles = (mi: number) => (mi < 10 ? `${mi.toFixed(1)} mi` : `${Math.round(mi).toLocaleString()} mi`);
+const KM_PER_MI = 1.609344;
+const useKm = () => getSettings().units === 'km';
+
+/** A distance (worked out in miles) in the units chosen in Settings. */
+export const formatDistance = (mi: number) => {
+  const [n, unit] = useKm() ? [mi * KM_PER_MI, 'km'] : [mi, 'mi'];
+  return n < 10 ? `${n.toFixed(1)} ${unit}` : `${Math.round(n).toLocaleString()} ${unit}`;
+};
+
+/** A round radius (in miles), e.g. "25 mi" or "40 km". */
+export const formatRadius = (mi: number) => (useKm() ? `${Math.round(mi * KM_PER_MI)} km` : `${mi} mi`);

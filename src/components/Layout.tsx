@@ -8,6 +8,7 @@ const NAV: { to: string; label: string; icon: IconName }[] = [
   { to: '/feed', label: 'Community', icon: 'feed' },
   { to: '/messages', label: 'Messages', icon: 'chat' },
   { to: '/me', label: 'Profile', icon: 'user' },
+  { to: '/settings', label: 'Settings', icon: 'settings' },
 ];
 
 export function Logo() {
@@ -27,7 +28,7 @@ export function Layout() {
         <Logo />
         <div className="nav-links">
           {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.to === '/'} className={`nav-link${n.to === '/me' ? ' is-profile' : ''}`}>
+            <NavLink key={n.to} to={n.to} end={n.to === '/'} className={`nav-link${n.to === '/me' ? ' is-profile' : n.to === '/settings' ? ' is-settings' : ''}`}>
               <span className="nav-icon">
                 <Icon name={n.icon} size={22} />
                 {n.to === '/messages' && unreadCount > 0 && <b className="nav-badge">{unreadCount}</b>}

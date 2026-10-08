@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useStore } from '../store';
 import { Icon, type IconName } from './Icon';
 
@@ -13,6 +14,9 @@ export function SignInPrompt({ icon, title, text }: { icon: IconName; title: str
         <button className="btn primary" onClick={() => requireSignIn(text)}>
           Sign in or create an account
         </button>
+        <Link to="/settings" className="settings-link">
+          <Icon name="settings" size={15} /> Settings
+        </Link>
       </div>
     </div>
   );

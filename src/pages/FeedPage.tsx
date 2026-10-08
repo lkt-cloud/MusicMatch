@@ -4,7 +4,7 @@ import { POST_KINDS, canPromote, kindLabel } from '../data/roles';
 import { saveFiles } from '../data/attachments';
 import type { Post, PostKind } from '../data/types';
 import { useStore } from '../store';
-import { milesBetween } from '../map/shared';
+import { formatRadius, milesBetween } from '../map/shared';
 import { Avatar } from '../components/Avatar';
 import { RoleLine } from '../components/RoleBadge';
 import { CreativeRow } from '../components/CreativeRow';
@@ -99,7 +99,7 @@ export function FeedPage() {
         <div className="posts">
           {shown.length === 0 && (
             <p className="empty">
-              {scope === 'near' ? `No posts within ${NEARBY_MILES} miles yet.` : 'No posts yet.'}
+              {scope === 'near' ? `No posts within ${formatRadius(NEARBY_MILES)} yet.` : 'No posts yet.'}
             </p>
           )}
           {promotedTop.map((p) => (

@@ -6,7 +6,7 @@ import { Avatar } from '../components/Avatar';
 import { useStore } from '../store';
 import { RoleIcon } from '../components/Icon';
 import { isNight, type Sky } from './sky';
-import { CITY_AREA_MILES, isExact, radiusCircle } from './shared';
+import { CITY_AREA_MILES, formatRadius, isExact, radiusCircle } from './shared';
 import { DETAIL_ZOOM } from './detail/useMapDetail';
 
 type Props = {
@@ -71,7 +71,7 @@ function fanLayout(n: number, x: number, y: number) {
 function hoverRadiusOf(c: Creative, skipTravel: boolean) {
   const area = !isExact(c);
   if (c.travelMiles && !skipTravel)
-    return { miles: c.travelMiles, kind: 'travel', text: area ? `${c.city} · travels up to ${c.travelMiles} mi` : `Travels up to ${c.travelMiles} mi` } as const;
+    return { miles: c.travelMiles, kind: 'travel', text: area ? `${c.city} · travels up to ${formatRadius(c.travelMiles)}` : `Travels up to ${formatRadius(c.travelMiles)}` } as const;
   if (area) return { miles: CITY_AREA_MILES, kind: 'area', text: `Somewhere in ${c.city}` } as const;
   return null;
 }

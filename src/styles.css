@@ -87,7 +87,9 @@ p { margin: 0; }
 .logo { display: flex; align-items: center; gap: 10px; padding: 0 12px; }
 .logo-mark { flex: none; }
 .logo-name { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; }
-.nav-links { display: flex; flex-direction: column; gap: 2px; }
+.nav-links { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+/* On the side rail, Profile sits at the bottom, apart from the main sections. */
+@media (min-width: 768px) { .nav-link.is-profile { margin-top: auto; } }
 .nav-link {
   position: relative; display: flex; align-items: center; gap: 14px;
   padding: 10px 12px; border-radius: var(--r-sm);

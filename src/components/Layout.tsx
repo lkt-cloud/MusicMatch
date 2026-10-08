@@ -27,7 +27,7 @@ export function Layout() {
         <Logo />
         <div className="nav-links">
           {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.to === '/'} className="nav-link">
+            <NavLink key={n.to} to={n.to} end={n.to === '/'} className={`nav-link${n.to === '/me' ? ' is-profile' : ''}`}>
               <span className="nav-icon">
                 <Icon name={n.icon} size={22} />
                 {n.to === '/messages' && unreadCount > 0 && <b className="nav-badge">{unreadCount}</b>}

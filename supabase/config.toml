@@ -1,0 +1,6 @@
+# Supabase project settings used by the CLI when deploying functions.
+project_id = "music-match"
+
+[functions.stripe-webhook]
+# Stripe can't send a Supabase login token; the function checks Stripe's signature instead.
+verify_jwt = false

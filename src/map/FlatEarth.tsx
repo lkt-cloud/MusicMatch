@@ -1,0 +1,263 @@
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { geoAzimuthalEquidistant, geoGraticule10, geoPath } from 'd3-geo';
+import { select } from 'd3-selection';
+import 'd3-transition';
+import { zoom as d3zoom, zoomIdentity, type ZoomBehavior, type ZoomTransform } from 'd3-zoom';
+import type { Creative } from '../data/types';
+import { FAN_ZOOM, PinLayer, fanCityNames } from './PinLayer';
+import { useSky } from './sky';
+import { DETAIL_ZOOM, useMapDetail } from './detail/useMapDetail';
+import { DetailLabels } from './detail/DetailLabels';
+import { LINE_STYLE, ROAD_STYLE, roadsAt, tilePaths } from './detail/draw';
+import type { Counties } from './detail/counties';
+import { DETAILED, LAND_STOPS, MAX_ZOOM, STATE_LINES, borderOpacity, radiusCircle, stateOpacity, type EarthProps } from './shared';
+
+// Night is drawn as many stacked, faint circles around the point opposite the sun.
+// Their radii step 0.7° apart across a ~28° band centred near the true terminator (90°),
+// so the darkness fades in gradually instead of in visible steps.
+const NIGHT_LAYERS = Array.from({ length: 40 }, (_, i) => 104 - i * 0.7);
+
+// Everything is projected once into a fixed 1000×1000 "world" space; d3-zoom
+// then maps world space to the screen. That keeps the heavy land paths static.
+const SIZE = 1000;
+const RADIUS = 485;
+
+const projection = geoAzimuthalEquidistant()
+  .rotate([0, -90]) // north pole in the middle, like the classic flat-earth map
+  .clipAngle(180 - 1e-3)
+  .scale(RADIUS / Math.PI)
+  .translate([SIZE / 2, SIZE / 2])
+  .precision(0.2);
+
+const path = geoPath(projection);
+// Street-level detail needs more decimal places: at full zoom one world unit is >1000 px.
+const detailPath = geoPath(projection).digits(5);
+
+const LAND = path(DETAILED.land) ?? '';
+const ICE = path(DETAILED.ice) ?? '';
+const BORDERS = path(DETAILED.borders) ?? '';
+const STATES = path(STATE_LINES) ?? '';
+const GRATICULE = path(geoGraticule10()) ?? '';
+// Concentric "record grooves" around the disc.
+const GROOVES = Array.from({ length: 9 }, (_, i) => RADIUS + 22 + i * 16);
+
+const project = (coords: [number, number]) => projection(coords) as [number, number];
+
+const countyPaths = new WeakMap<Counties, string>();
+const countyPath = (c: Counties) => {
+  let d = countyPaths.get(c);
+  if (d === undefined) countyPaths.set(c, (d = detailPath(c.lines) ?? ''));
+  return d;
+};
+
+export function FlatEarth({ creatives, me, selectedId, onSelect, onViewChange, initialView, range, here, ref }: EarthProps) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const zoomRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+  const startView = useRef(initialView);
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  const [t, setT] = useState<ZoomTransform>(zoomIdentity);
+  // True while the user is dragging or scrolling, so the heavier street detail can be skipped.
+  const [moving, setMoving] = useState(false);
+
+  const fitK = (Math.min(size.w, size.h) / SIZE) * 0.94 || 1;
+  const rel = t.k / fitK; // 1 = whole disc fits the viewport
+
+  const fitTransform = () =>
+    zoomIdentity.translate((size.w - SIZE * fitK) / 2, (size.h - SIZE * fitK) / 2).scale(fitK);
+
+  const centeredOn = (coords: [number, number], zoom: number) => {
+    const [x, y] = project(coords);
+    const k = fitK * zoom;
+    return zoomIdentity.translate(size.w / 2 - k * x, size.h / 2 - k * y).scale(k);
+  };
+
+  useEffect(() => {
+    const el = wrapRef.current!;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setSize({ w: Math.round(width), h: Math.round(height) });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // (Re)configure zoom when the viewport size changes.
+  useEffect(() => {
+    if (!size.w || !size.h) return;
+    const svg = select(svgRef.current!);
+    const pad = SIZE * 0.08;
+    const z = d3zoom<SVGSVGElement, unknown>()
+      .extent([[0, 0], [size.w, size.h]])
+      .scaleExtent([fitK * 0.9, fitK * MAX_ZOOM])
+      .translateExtent([[-pad, -pad], [SIZE + pad, SIZE + pad]])
+      .on('start', (e) => e.sourceEvent && setMoving(true))
+      .on('zoom', (e) => setT(e.transform))
+      .on('end', () => setMoving(false));
+    zoomRef.current = z;
+    svg.call(z).on('dblclick.zoom', null);
+    const start = startView.current;
+    startView.current = undefined;
+    svg.call(z.transform, start && start.zoom > 1.5 ? centeredOn(start.center, start.zoom) : fitTransform());
+    return () => {
+      svg.on('.zoom', null);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [size.w, size.h]);
+
+  const animateTo = (next: ZoomTransform, ms: number) =>
+    select(svgRef.current!).transition().duration(ms).call(zoomRef.current!.transform, next);
+
+  useImperativeHandle(ref, () => ({
+    flyTo: (coords, zoom = 140) => animateTo(centeredOn(coords, zoom), 1400),
+    zoomBy: (factor) => select(svgRef.current!).transition().duration(350).call(zoomRef.current!.scaleBy, factor),
+    reset: () => animateTo(fitTransform(), 1000),
+  }));
+
+  const toScreen = useCallback((coords: [number, number]) => t.apply(project(coords)) as [number, number], [t]);
+
+  // Report which creatives are on screen.
+  useEffect(() => {
+    if (!onViewChange || !size.w) return;
+    const visible = creatives.filter((c) => {
+      const [x, y] = toScreen(c.coords);
+      return x > -20 && y > -20 && x < size.w + 20 && y < size.h + 20;
+    });
+    const center = projection.invert!(t.invert([size.w / 2, size.h / 2])) as [number, number];
+    onViewChange(visible, center, rel);
+  }, [t, creatives, toScreen, size, rel, onViewChange]);
+
+  const zoomToCluster = (members: Creative[]) => {
+    const pts = members.map((m) => project(m.coords));
+    const xs = pts.map((p) => p[0]);
+    const ys = pts.map((p) => p[1]);
+    const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    const span = Math.max(x1 - x0, y1 - y0, 0.01);
+    const k = Math.min(fitK * MAX_ZOOM, Math.max(t.k * 2.5, (Math.min(size.w, size.h) * 0.5) / span));
+    animateTo(zoomIdentity.translate(size.w / 2 - (k * (x0 + x1)) / 2, size.h / 2 - (k * (y0 + y1)) / 2).scale(k), 900);
+  };
+
+  const selected = creatives.find((c) => c.id === selectedId);
+  const radiusPath = useMemo(
+    () => (selected?.travelMiles ? path(radiusCircle(selected.coords, selected.travelMiles)) : null),
+    [selected],
+  );
+
+  const rangePath = useMemo(() => (range ? path(radiusCircle(range.center, range.miles)) : null), [range]);
+
+  const sky = useSky();
+  const nightPaths = useMemo(() => {
+    const antisolar: [number, number] = [sky.sun[0] + 180, -sky.sun[1]];
+    return NIGHT_LAYERS.map((deg) => path(radiusCircle(antisolar, (deg * Math.PI * 3958.8) / 180)) ?? '');
+  }, [sky]);
+
+  // Roads, city & county lines, water and place names once you're zoomed in.
+  const invert = useCallback(
+    (p: [number, number]) => {
+      const [wx, wy] = t.invert(p);
+      if (Math.hypot(wx - SIZE / 2, wy - SIZE / 2) > RADIUS) return null; // off the disc
+      return projection.invert!([wx, wy]) as [number, number];
+    },
+    [t],
+  );
+  const crowdCities = useMemo(() => fanCityNames(creatives), [creatives]);
+  const detail = useMapDetail({ zoom: rel, size, invert, viewKey: t.toString() });
+  const detailAlpha = Math.max(0, Math.min(1, (rel - DETAIL_ZOOM) / 15));
+  // Zoomed into a region, night is lightened a little so streets and labels stay readable.
+  const nightOpacity = rel < 20 ? 1 : Math.max(0.62, 1 - (rel - 20) / 180);
+  const tilePathList = detail.tiles.map((tile) => ({ key: tile.key, d: tilePaths(tile, detailPath) }));
+
+  return (
+    <div className="earth" ref={wrapRef}>
+      <svg ref={svgRef} width={size.w} height={size.h} role="img" aria-label="Map of creatives" onClick={() => onSelect(null)}>
+        <defs>
+          {/* In map units (not per shape), so tile water matches the ocean around it. */}
+          <radialGradient id="ocean" gradientUnits="userSpaceOnUse" cx={SIZE / 2} cy={SIZE / 2} r={RADIUS}>
+            <stop offset="0%" stopColor="var(--ocean-center)" />
+            <stop offset="100%" stopColor="var(--ocean-edge)" />
+          </radialGradient>
+          <radialGradient id="land" gradientUnits="userSpaceOnUse" cx={SIZE / 2} cy={SIZE / 2} r={RADIUS}>
+            {LAND_STOPS.map(([o, c]) => (
+              <stop key={o} offset={o} stopColor={c} />
+            ))}
+          </radialGradient>
+        </defs>
+        <g transform={t.toString()}>
+          {GROOVES.map((r, i) => (
+            <circle key={r} cx={SIZE / 2} cy={SIZE / 2} r={r} className="earth-groove" style={{ opacity: 0.5 - i * 0.05 }} />
+          ))}
+          <circle cx={SIZE / 2} cy={SIZE / 2} r={RADIUS + 5} className="earth-rim" />
+          <circle cx={SIZE / 2} cy={SIZE / 2} r={RADIUS} fill="url(#ocean)" />
+          <path d={GRATICULE} className="earth-graticule" />
+          <path d={ICE} className="earth-ice" />
+          <path d={LAND} className="earth-land" />
+          {tilePathList.length > 0 && (
+            <g className="detail" style={{ opacity: detailAlpha }}>
+              {tilePathList.map(({ key, d }) => (
+                <g key={key}>
+                  <path d={d.land} className="detail-land" />
+                  <path d={d.water} className="detail-water" />
+                </g>
+              ))}
+            </g>
+          )}
+          <path d={STATES} className="earth-states" style={{ opacity: stateOpacity(rel) }} />
+          <path d={BORDERS} className="earth-borders" style={{ opacity: borderOpacity(rel) }} />
+          <g className="earth-night" aria-hidden style={{ opacity: nightOpacity }}>
+            {nightPaths.map((d, i) => (
+              <path key={i} d={d} />
+            ))}
+          </g>
+          {/* Lines and roads sit above the night shade, so after dark the road network glows. */}
+          {tilePathList.length > 0 && (
+            <g className="detail" style={{ opacity: detailAlpha }}>
+              {detail.counties && !moving && <path d={countyPath(detail.counties)} className="detail-line" style={lineStyle('county')} />}
+              {(moving ? [] : (['county', 'city', 'state'] as const)).map((level) =>
+                tilePathList.map(({ key, d }) => (
+                  <path key={`${level}-${key}`} d={d.lines[level]} className="detail-line" style={lineStyle(level)} />
+                )),
+              )}
+              {roadsAt(detail.tileZ).filter((c) => !moving || c === 'motorway' || c === 'trunk').map((cls) =>
+                tilePathList.map(({ key, d }) => (
+                  <g key={`${cls}-${key}`}>
+                    {ROAD_STYLE[cls].casing > 0 && (
+                      <path d={d.roads[cls]} className="detail-road-casing" style={{ strokeWidth: ROAD_STYLE[cls].casing }} />
+                    )}
+                    <path d={d.roads[cls]} className="detail-road" style={{ strokeWidth: ROAD_STYLE[cls].width, stroke: ROAD_STYLE[cls].color }} />
+                  </g>
+                )),
+              )}
+            </g>
+          )}
+          {rangePath && <path d={rangePath} className="earth-range" />}
+          {radiusPath && selected && (
+            <path d={radiusPath} className="earth-radius" />
+          )}
+        </g>
+      </svg>
+
+      <PinLayer
+        size={size}
+        zoom={rel}
+        toScreen={toScreen}
+        creatives={creatives}
+        me={me}
+        selectedId={selectedId}
+        onSelect={onSelect}
+        onClusterClick={zoomToCluster}
+        sky={sky}
+        here={here}
+        cityLabels={detail.tiles.length === 0}
+        beneath={
+          <DetailLabels owned={rel >= FAN_ZOOM ? crowdCities : undefined} tiles={detail.tiles} counties={detail.counties} tileZ={detail.tileZ} size={size} toScreen={toScreen} />
+        }
+      />
+    </div>
+  );
+}
+
+const lineStyle = (level: keyof typeof LINE_STYLE) => ({
+  stroke: LINE_STYLE[level].color,
+  strokeWidth: LINE_STYLE[level].width,
+  strokeDasharray: LINE_STYLE[level].dash.join(' '),
+});

@@ -1,0 +1,10 @@
+node_modules
+dist
+.DS_Store
+.env
+.env.local
+
+# Supabase CLI link state
+supabase/.temp
+# Personal Claude Code settings
+.claude/settings.local.json

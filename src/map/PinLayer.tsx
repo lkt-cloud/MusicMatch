@@ -20,7 +20,7 @@ type Props = {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onClusterClick: (members: Creative[]) => void;
-  /** Sun and moon; when given, they're drawn and city lights only show on the night side. */
+  /** The sun; when given, it's drawn and city lights only show on the night side. */
   sky?: Sky;
   /** Device location, when shared; the 'you' dot goes here instead of your profile location. */
   here?: [number, number] | null;
@@ -288,7 +288,7 @@ export function PinLayer({ size, zoom, toScreen, creatives, me, selectedId, onSe
           );
         })}
 
-      {sky && <SunMoon sky={sky} toScreen={toScreen} />}
+      {sky && <Sun sky={sky} toScreen={toScreen} />}
 
       {hovered && hoverAt && (
         <HoverRadius
@@ -364,42 +364,13 @@ function HoverRadius({
   );
 }
 
-const PHASES = ['New moon', 'Waxing crescent', 'First quarter', 'Waxing gibbous', 'Full moon', 'Waning gibbous', 'Last quarter', 'Waning crescent'];
-
-function SunMoon({ sky, toScreen }: { sky: Sky; toScreen: Props['toScreen'] }) {
+function Sun({ sky, toScreen }: { sky: Sky; toScreen: Props['toScreen'] }) {
   const sun = toScreen(sky.sun);
-  const moon = toScreen(sky.moon);
-  const phase = PHASES[Math.round(sky.moonElongation / 45) % 8];
+  if (!sun) return null;
   return (
-    <>
-      {moon && (
-        <div className="moon-marker" style={{ transform: `translate(${moon[0]}px, ${moon[1]}px)` }} title={`Moon overhead · ${phase}`}>
-          <MoonDisc elongation={sky.moonElongation} />
-        </div>
-      )}
-      {sun && (
-        <div className="sun-marker" style={{ transform: `translate(${sun[0]}px, ${sun[1]}px)` }} title="Sun directly overhead · it’s noon here">
-          <span className="sun-core" />
-          <span className="sun-label">Noon</span>
-        </div>
-      )}
-    </>
-  );
-}
-
-/** The moon with its current phase (as seen from the northern hemisphere). */
-function MoonDisc({ elongation, r = 9 }: { elongation: number; r?: number }) {
-  const k = Math.cos((elongation * Math.PI) / 180); // 1 = new, -1 = full
-  const litRight = elongation < 180; // waxing
-  const rx = Math.abs(k) * r;
-  // Terminator bulges toward the lit side for a crescent, away from it when gibbous.
-  const bulgeRight = k > 0 ? litRight : !litRight;
-  const lit = `M0 ${-r} A${r} ${r} 0 0 ${litRight ? 1 : 0} 0 ${r} A${rx} ${r} 0 0 ${bulgeRight ? 0 : 1} 0 ${-r}Z`;
-  return (
-    <svg width={r * 2 + 4} height={r * 2 + 4} viewBox={`${-r - 2} ${-r - 2} ${r * 2 + 4} ${r * 2 + 4}`} aria-hidden>
-      <circle r={r} fill="#2b2f33" />
-      <path d={lit} fill="#ece8dc" />
-      <circle r={r} fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="0.8" />
-    </svg>
+    <div className="sun-marker" style={{ transform: `translate(${sun[0]}px, ${sun[1]}px)` }} title="Sun directly overhead · it’s noon here">
+      <span className="sun-core" />
+      <span className="sun-label">Noon</span>
+    </div>
   );
 }

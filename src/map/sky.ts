@@ -1,6 +1,5 @@
-// Where the sun and moon are overhead right now. Low-precision formulas from the
-// Astronomical Almanac — good to a fraction of a degree for the sun and ~1° for the
-// moon, which is far below what you can see on the map.
+// Where the sun is overhead right now. Low-precision formula from the Astronomical
+// Almanac, good to a fraction of a degree, far below what you can see on the map.
 
 import { useEffect, useState } from 'react';
 import { geoDistance } from 'd3-geo';
@@ -30,37 +29,20 @@ function sunEcliptic(n: number) {
   return norm360(L + 1.915 * Math.sin(g) + 0.02 * Math.sin(2 * g));
 }
 
-function moonEcliptic(n: number) {
-  const L = 218.316 + 13.176396 * n;
-  const M = (134.963 + 13.064993 * n) * RAD;
-  const F = (93.272 + 13.22935 * n) * RAD;
-  return { lon: norm360(L + 6.289 * Math.sin(M)), lat: 5.128 * Math.sin(F) };
-}
-
 export type Sky = {
   /** Point where the sun is straight overhead (local noon). [lng, lat] */
   sun: [number, number];
-  /** Point where the moon is straight overhead. [lng, lat] */
-  moon: [number, number];
-  /** Moon's angle from the sun along the ecliptic: 0 = new, 180 = full. */
-  moonElongation: number;
 };
 
 export function skyAt(date: Date): Sky {
   const n = daysSinceJ2000(date);
-  const sunLon = sunEcliptic(n);
-  const moon = moonEcliptic(n);
-  return {
-    sun: subPoint(n, sunLon, 0),
-    moon: subPoint(n, moon.lon, moon.lat),
-    moonElongation: norm360(moon.lon - sunLon),
-  };
+  return { sun: subPoint(n, sunEcliptic(n), 0) };
 }
 
 /** Is it night at `coords` (sun below the horizon)? */
 export const isNight = (sky: Sky, coords: [number, number]) => geoDistance(coords, sky.sun) > Math.PI / 2;
 
-/** The sky, refreshed every minute so the sun and moon creep across the map in real time. */
+/** The sky, refreshed every minute so the sun creeps across the map in real time. */
 export function useSky(): Sky {
   const [sky, setSky] = useState(() => skyAt(new Date()));
   useEffect(() => {

@@ -54,7 +54,7 @@ You'll need about 45 minutes. Do the parts in order.
    | --- | --- | --- |
    | Boost a post (7 days) | $5 | ¥750 |
    | Featured profile | $7 / month | ¥1,000 / month |
-   | Studio listing | $20 / month | ¥3,000 / month |
+   | Studio listing | $15 / month | ¥2,250 / month |
 
    Which one someone pays depends on the country in their profile. Stripe converts dollar payments to yen
    when it pays you.

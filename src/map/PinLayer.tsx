@@ -3,6 +3,7 @@ import { CITY_NAMES, cityCoords } from '../data/creatives';
 import { roleInfo, rolesOf } from '../data/roles';
 import type { Creative } from '../data/types';
 import { Avatar } from '../components/Avatar';
+import { useStore } from '../store';
 import { RoleIcon } from '../components/Icon';
 import { isNight, type Sky } from './sky';
 import { CITY_AREA_MILES, isExact, radiusCircle } from './shared';
@@ -165,7 +166,9 @@ export function PinLayer({ size, zoom, toScreen, creatives, me, selectedId, onSe
   const fanned = useMemo(() => (fanning ? fanCityNames(creatives) : new Set<string>()), [fanning, creatives]);
   const showCities = cityLabels && zoom > 8;
   const showNames = zoom > 90;
-  const meXY = toScreen(here ?? me.coords);
+  // Guests have no location until they share one, so no "you" dot.
+  const { located } = useStore();
+  const meXY = here || located ? toScreen(here ?? me.coords) : null;
 
   const spots = new Map<string, [number, number]>(); // where each pin ended up, for the hover label
   const pin = (c: Creative, x: number, y: number, fan?: { i: number; fx: number; fy: number }) => {

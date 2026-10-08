@@ -12,7 +12,7 @@ export const currencyFor = (country: string): Currency => (country === 'JP' ? 'j
 const AMOUNTS: Record<PromotionType, Record<Currency, number>> = {
   boost_post: { usd: 5, jpy: 750 },
   featured_profile: { usd: 7, jpy: 1000 },
-  studio_listing: { usd: 20, jpy: 3000 },
+  studio_listing: { usd: 15, jpy: 2250 },
 };
 
 const DETAILS: Record<PromotionType, { name: string; per: string; blurb: string }> = {

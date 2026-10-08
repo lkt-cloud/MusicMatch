@@ -20,7 +20,7 @@ export function Logo() {
 }
 
 export function Layout() {
-  const { unreadCount } = useStore();
+  const { unreadCount, signedIn } = useStore();
   return (
     <div className="shell">
       <nav className="nav" aria-label="Main">
@@ -32,7 +32,8 @@ export function Layout() {
                 <Icon name={n.icon} size={22} />
                 {n.to === '/messages' && unreadCount > 0 && <b className="nav-badge">{unreadCount}</b>}
               </span>
-              <span className="nav-label">{n.label}</span>
+              {/* Guests see "Sign in" where Profile would be; the page explains why. */}
+              <span className="nav-label">{n.to === '/me' && !signedIn ? 'Sign in' : n.label}</span>
             </NavLink>
           ))}
         </div>

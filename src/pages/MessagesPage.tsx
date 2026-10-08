@@ -4,6 +4,7 @@ import { saveFiles } from '../data/attachments';
 import { KIND_ICON, PendingTray, usePendingFiles } from '../components/AttachPicker';
 import type { Message } from '../data/types';
 import { useStore } from '../store';
+import { SignInPrompt } from '../components/SignInPrompt';
 import { Avatar } from '../components/Avatar';
 import { AttachmentView } from '../components/AttachmentView';
 import { Icon } from '../components/Icon';
@@ -21,6 +22,11 @@ function preview(m: Message) {
 }
 
 export function MessagesPage() {
+  const { signedIn } = useStore();
+  return signedIn ? <MessagesPageContent /> : <SignInPrompt icon="chat" title="Messages" text="Sign in to message creatives and see your conversations." />;
+}
+
+function MessagesPageContent() {
   const { id } = useParams();
   const { conversations, person, meId } = useStore();
 

@@ -1,9 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../backend/client';
 import { LogoMark } from '../components/LogoMark';
+import { Icon } from '../components/Icon';
 
-/** Email + password sign in / sign up. Only shown in live mode. */
-export function AuthPage() {
+/**
+ * Email + password sign in / sign up (live mode only). Opens over the page when a guest
+ * tries something that needs an account; `reason` says what.
+ */
+export function AuthPage({ reason, onClose }: { reason?: string; onClose?: () => void }) {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -33,6 +37,14 @@ export function AuthPage() {
     setBusy(false);
   };
 
+  // Esc closes it.
+  useEffect(() => {
+    if (!onClose) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   const resetPassword = async () => {
     if (!email) return setError('Type your email first.');
     const { error } = await supabase!.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
@@ -41,14 +53,19 @@ export function AuthPage() {
   };
 
   return (
-    <div className="auth">
-      <form className="auth-card" onSubmit={submit}>
+    <div className={`auth${onClose ? ' is-modal' : ''}`} onMouseDown={(e) => onClose && e.target === e.currentTarget && onClose()}>
+      <form className="auth-card" onSubmit={submit} role={onClose ? 'dialog' : undefined} aria-modal={onClose ? true : undefined} aria-label="Sign in">
+        {onClose && (
+          <button type="button" className="icon-btn ghost auth-close" onClick={onClose} aria-label="Close">
+            <Icon name="close" size={18} />
+          </button>
+        )}
         <div className="auth-brand">
           <LogoMark size={48} />
           <h1>Music Match</h1>
         </div>
         <p className="auth-sub">
-          {mode === 'signin' ? 'Sign in to find creatives near you.' : 'Create your account. It takes a minute.'}
+          {mode === 'signin' ? reason ?? 'Sign in to find creatives near you.' : 'Create your account. It takes a minute.'}
         </p>
 
         {mode === 'signup' && (

@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { cancelPromotion, fetchMyPromotions, type MyPromotion } from '../backend/api';
 import { LAUNCH_LABEL, usePricing } from '../data/pricing';
 import { useStore } from '../store';
+import { SignInPrompt } from '../components/SignInPrompt';
 import { Icon } from '../components/Icon';
 import { PromoteOptions } from '../components/PromoteOptions';
 
@@ -19,6 +20,11 @@ const fmtDate = (iso: string | null) =>
 
 /** Your paid promotions: see what's running, and cancel. */
 export function PromotionsPage() {
+  const { signedIn } = useStore();
+  return signedIn ? <PromotionsPageContent /> : <SignInPrompt icon="star" title="Your promotions" text="Sign in to promote your posts and profile." />;
+}
+
+function PromotionsPageContent() {
   const PRICING = usePricing();
   const { live, posts, refreshPromotions } = useStore();
   const [params, setParams] = useSearchParams();

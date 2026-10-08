@@ -2,6 +2,7 @@ import { GENRES, genreInfo } from '../data/genres';
 import { ROLES, roleInfo, rolesOf } from '../data/roles';
 import type { Creative, Role } from '../data/types';
 import { milesBetween, reaches } from '../map/shared';
+import { useStore } from '../store';
 import { Icon, RoleIcon } from './Icon';
 
 export type Filters = {
@@ -54,6 +55,7 @@ export function FilterPanel({
   resultCount: number;
   me: Creative;
 }) {
+  const { located } = useStore();
   const set = (patch: Partial<Filters>) => onChange({ ...value, ...patch });
   const stop = value.miles == null ? STOPS.length : STOPS.indexOf(value.miles);
 
@@ -66,7 +68,15 @@ export function FilterPanel({
         </button>
       </div>
 
-      <section className="filter-section">
+      {!located && (
+        <section className="filter-section">
+          <div className="filter-label">
+            <span><Icon name="radius" size={16} /> Distance from you</span>
+          </div>
+          <p className="field-note">Tap the location button on the map (or sign in) to filter by distance.</p>
+        </section>
+      )}
+      {located && <section className="filter-section">
         <div className="filter-label">
           <span><Icon name="radius" size={16} /> Distance from you</span>
           <strong>{value.miles == null ? 'Anywhere' : `Within ${value.miles} mi`}</strong>
@@ -95,7 +105,7 @@ export function FilterPanel({
           <input type="checkbox" checked={value.comesToMe} onChange={(e) => set({ comesToMe: e.target.checked })} />
           <span>Only people who’ll travel to me</span>
         </label>
-      </section>
+      </section>}
 
       <section className="filter-section">
         <div className="filter-label">

@@ -5,6 +5,7 @@ import { countryName, flag, loadCities } from '../data/places';
 import { PLATFORMS, normalizeSocialUrl, platformInfo } from '../data/socials';
 import type { Creative, Role, SocialPlatform } from '../data/types';
 import { useStore } from '../store';
+import { SignInPrompt } from '../components/SignInPrompt';
 import { formatMiles, milesBetween, reaches } from '../map/shared';
 import { Avatar } from '../components/Avatar';
 import { RoleLine } from '../components/RoleBadge';
@@ -30,7 +31,7 @@ const directionsUrl = ([lng, lat]: [number, number]) =>
 
 export function ProfilePage({ mine = false }: { mine?: boolean }) {
   const { id } = useParams();
-  const { me, meId, posts, person, creatives, signOut } = useStore();
+  const { me, meId, posts, person, creatives, signOut, signedIn, located, requireSignIn } = useStore();
   const flags = usePromotionFlags();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
@@ -38,6 +39,8 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
   const [choosing, setChoosing] = useState(false);
 
   if (id === meId) return <Navigate to="/me" replace />;
+  if (mine && !signedIn)
+    return <SignInPrompt icon="user" title="Your profile" text="Sign in to set up your profile and show up on the map." />;
   const p = mine ? me : creatives.find((c) => c.id === id);
   if (!p) return <div className="page"><p className="empty">That profile doesn’t exist.</p></div>;
 
@@ -46,7 +49,8 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
     (x) => x.id === p.featuredPostId && x.attachments?.some((a) => a.kind === 'image' || a.kind === 'video'),
   );
   const color = roleInfo(p.role).color;
-  const away = mine ? null : milesBetween(me.coords, p.coords);
+  const away = mine || !located ? null : milesBetween(me.coords, p.coords);
+  const message = () => requireSignIn(`Sign in to message ${p.name}.`) && navigate(`/messages/${p.id}`);
 
   return (
     <div className="page profile">
@@ -99,7 +103,7 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
                 )}
               </>
             ) : (
-              <button className="btn primary" onClick={() => navigate(`/messages/${p.id}`)}>
+              <button className="btn primary" onClick={message}>
                 <Icon name="chat" size={17} /> Message
               </button>
             )}
@@ -134,7 +138,7 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
             </div>
             <GenreChips ids={p.genres} />
 
-            <LocationInfo person={p} me={me} mine={mine} />
+            <LocationInfo person={p} me={me} mine={mine} located={located} />
 
             {p.socials.length > 0 ? (
               <div className="profile-block">
@@ -163,7 +167,7 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
               <div className="featured-foot">
                 {featured.text && <p>{featured.text}</p>}
                 {!mine && (
-                  <button className="btn primary" onClick={() => navigate(`/messages/${p.id}`)}>
+                  <button className="btn primary" onClick={message}>
                     Book {p.name.split(' ')[0]}
                   </button>
                 )}
@@ -245,7 +249,7 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
   );
 }
 
-function LocationInfo({ person: p, me, mine }: { person: Creative; me: Creative; mine: boolean }) {
+function LocationInfo({ person: p, me, mine, located }: { person: Creative; me: Creative; mine: boolean; located: boolean }) {
   const studio = hasRole(p, 'studio') && p.address;
   return (
     <>
@@ -276,7 +280,7 @@ function LocationInfo({ person: p, me, mine }: { person: Creative; me: Creative;
             <strong>
               Up to {p.travelMiles} miles from {p.city}
             </strong>
-            {!mine && reaches(p, me.coords) && <span className="tag-good">Can come to you</span>}
+            {!mine && located && reaches(p, me.coords) && <span className="tag-good">Can come to you</span>}
           </div>
           {!mine && !studio && (
             <div className="place-actions">

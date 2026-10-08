@@ -21,7 +21,7 @@ const nearestCity = (p: [number, number]) =>
   CITY_NAMES.reduce((best, c) => (geoDistance(cityCoords(c), p) < geoDistance(cityCoords(best), p) ? c : best));
 
 export function MapPage() {
-  const { me, mapMode, setMapMode, creatives } = useStore();
+  const { me, mapMode, setMapMode, creatives, located, requireSignIn, setDeviceLocation } = useStore();
   const navigate = useNavigate();
   const earth = useRef<EarthHandle>(null);
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
@@ -38,8 +38,11 @@ export function MapPage() {
     zoom: 1,
   });
   // Open on you: a "See on map" link wins, otherwise your profile location at city-and-neighbours zoom
-  // (no flash of the whole world first). Device location, if shared, refines it below.
-  const lastView = useRef<View | undefined>(focused ? { center: focused.coords, zoom: 220 } : { center: me.coords, zoom: LOCAL_ZOOM });
+  // (no flash of the whole world first). Device location, if shared, refines it below. Guests
+  // start on the whole map until they share where they are.
+  const lastView = useRef<View | undefined>(
+    focused ? { center: focused.coords, zoom: 220 } : located ? { center: me.coords, zoom: LOCAL_ZOOM } : undefined,
+  );
   const [here, setHere] = useState<[number, number] | null>(null);
 
   // Ask for location once when the map opens. If it's refused or unavailable (e.g. not on
@@ -52,6 +55,7 @@ export function MapPage() {
         if (!live) return;
         const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude];
         setHere(coords);
+        setDeviceLocation(coords);
         earth.current?.flyTo(coords, LOCAL_ZOOM);
       },
       () => undefined,
@@ -113,12 +117,13 @@ export function MapPage() {
   };
 
   const locate = () => {
-    const fallback = () => earth.current?.flyTo(here ?? me.coords, LOCAL_ZOOM);
+    const fallback = () => (here || located) && earth.current?.flyTo(here ?? me.coords, LOCAL_ZOOM);
     if (!navigator.geolocation) return fallback();
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude];
         setHere(coords);
+        setDeviceLocation(coords);
         earth.current?.flyTo(coords, LOCAL_ZOOM);
       },
       fallback,
@@ -262,7 +267,8 @@ export function MapPage() {
                   </span>
                 )}
                 <div className="muted small">
-                  <RoleLine person={selected} /> · {selected.city} · {formatMiles(milesBetween(me.coords, selected.coords))}
+                  <RoleLine person={selected} /> · {selected.city}
+                  {located && <> · {formatMiles(milesBetween(me.coords, selected.coords))}</>}
                 </div>
               </div>
             </div>
@@ -275,7 +281,7 @@ export function MapPage() {
             {selected.travelMiles != null && (
               <p className="preview-place small">
                 <Icon name="radius" size={15} /> Travels up to {selected.travelMiles} mi
-                {reaches(selected, me.coords) && <span className="tag-good">reaches you</span>}
+                {located && reaches(selected, me.coords) && <span className="tag-good">reaches you</span>}
               </p>
             )}
             <div className="preview-meta small">
@@ -292,7 +298,7 @@ export function MapPage() {
             <GenreChips ids={selected.genres} small />
             <SocialLinks socials={selected.socials} compact />
             <div className="preview-actions">
-              <button className="btn primary" onClick={() => navigate(`/messages/${selected.id}`)}>
+              <button className="btn primary" onClick={() => requireSignIn(`Sign in to message ${selected.name}.`) && navigate(`/messages/${selected.id}`)}>
                 <Icon name="chat" size={17} /> Message
               </button>
               <Link className="btn" to={`/u/${selected.id}`}>
@@ -335,7 +341,7 @@ export function MapPage() {
               person={c}
               active={c.id === selectedId}
               onClick={() => focus(c)}
-              meta={formatMiles(milesBetween(me.coords, c.coords))}
+              meta={located ? formatMiles(milesBetween(me.coords, c.coords)) : undefined}
             />
           ))}
         </div>

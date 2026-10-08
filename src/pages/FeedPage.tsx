@@ -34,7 +34,7 @@ export function TopicPill({ kind }: { kind: PostKind }) {
 }
 
 export function FeedPage() {
-  const { me, posts, person, creatives } = useStore();
+  const { me, posts, person, creatives, signedIn, located } = useStore();
   const [scope, setScope] = useState<'all' | 'near'>('all');
   const [topic, setTopic] = useState<PostKind | null>(null);
   const [promoting, setPromoting] = useState(false);
@@ -53,29 +53,31 @@ export function FeedPage() {
   // Up to two boosted posts lead the feed, clearly marked; the rest stay in time order.
   const { top: promotedTop, rest } = splitPromoted(shown, (p) => flags.isBoosted(p.id));
   const nearCount = posts.filter((p) => isNear(p.authorId)).length;
-  const nearby = creatives.filter((c) => milesBetween(c.coords, me.coords) <= NEARBY_MILES).slice(0, 6);
+  const nearby = (located ? creatives.filter((c) => milesBetween(c.coords, me.coords) <= NEARBY_MILES) : creatives).slice(0, 6);
 
   return (
     <div className="page feed-page">
       <div className="feed-main">
         <header className="feed-head">
           <h1>Community</h1>
-          {canPromote(me) && (
+          {signedIn && canPromote(me) && (
             <button className="btn primary feed-promote" onClick={() => setPromoting(true)}>
               <Icon name="image" size={16} /> Promote your work
             </button>
           )}
-          <div className="segmented" role="tablist" aria-label="Feed">
-            <button role="tab" aria-selected={scope === 'all'} className={scope === 'all' ? 'is-on' : ''} onClick={() => setScope('all')}>
-              All
-            </button>
-            <button role="tab" aria-selected={scope === 'near'} className={scope === 'near' ? 'is-on' : ''} onClick={() => setScope('near')}>
-              Near {me.city || 'you'} <span className="count">{nearCount}</span>
-            </button>
-          </div>
+          {located && (
+            <div className="segmented" role="tablist" aria-label="Feed">
+              <button role="tab" aria-selected={scope === 'all'} className={scope === 'all' ? 'is-on' : ''} onClick={() => setScope('all')}>
+                All
+              </button>
+              <button role="tab" aria-selected={scope === 'near'} className={scope === 'near' ? 'is-on' : ''} onClick={() => setScope('near')}>
+                Near {me.city || 'you'} <span className="count">{nearCount}</span>
+              </button>
+            </div>
+          )}
         </header>
 
-        <Composer />
+        {signedIn ? <Composer /> : <GuestComposer />}
 
         <div className="topic-filter" role="group" aria-label="Filter by topic">
           <button className={`topic-chip${!topic ? ' is-on' : ''}`} onClick={() => setTopic(null)}>
@@ -113,7 +115,7 @@ export function FeedPage() {
 
       <aside className="feed-side">
         <div className="card side-card">
-          <h2 className="side-title">Near you</h2>
+          <h2 className="side-title">{located ? 'Near you' : 'On Music Match'}</h2>
           {nearby.map((c) => (
             <CreativeRow key={c.id} person={c} />
           ))}
@@ -123,6 +125,18 @@ export function FeedPage() {
         </div>
       </aside>
     </div>
+  );
+}
+
+/** What guests see instead of the composer: one tap opens sign-in. */
+function GuestComposer() {
+  const { requireSignIn } = useStore();
+  return (
+    <button className="card guest-composer" onClick={() => requireSignIn('Sign in to post in Community.')}>
+      <Icon name="edit" size={18} />
+      <span>Share a collab, a release or a question…</span>
+      <span className="btn primary">Sign in to post</span>
+    </button>
   );
 }
 
@@ -272,7 +286,7 @@ function Composer() {
 }
 
 function PostCard({ post, promoted = false }: { post: Post; promoted?: boolean }) {
-  const { me, meId, person, toggleLike, addComment, deletePost } = useStore();
+  const { me, meId, person, toggleLike, addComment, deletePost, located, requireSignIn } = useStore();
   const navigate = useNavigate();
   const author = person(post.authorId);
   const mine = author.id === meId;
@@ -285,10 +299,11 @@ function PostCard({ post, promoted = false }: { post: Post; promoted?: boolean }
   const files = post.attachments ?? [];
   const images = files.filter((f) => f.kind === 'image');
   const others = files.filter((f) => f.kind !== 'image');
-  const away = mine ? 0 : milesBetween(author.coords, me.coords);
+  const away = mine || !located ? 0 : milesBetween(author.coords, me.coords);
+  const message = () => requireSignIn(`Sign in to message ${author.name}.`) && navigate(`/messages/${author.id}`);
 
   const send = () => {
-    if (!reply.trim()) return;
+    if (!reply.trim() || !requireSignIn('Sign in to reply.')) return;
     addComment(post.id, reply.trim());
     setReply('');
     setOpen(true);
@@ -311,7 +326,7 @@ function PostCard({ post, promoted = false }: { post: Post; promoted?: boolean }
           </Link>
           <span className="muted small">
             <RoleLine person={author} compact /> · {author.city}
-            {away > NEARBY_MILES ? '' : !mine && ' · nearby'} · {timeAgo(post.at)}
+            {!located || away > NEARBY_MILES ? '' : !mine && ' · nearby'} · {timeAgo(post.at)}
           </span>
         </div>
         <TopicPill kind={post.kind} />
@@ -339,7 +354,7 @@ function PostCard({ post, promoted = false }: { post: Post; promoted?: boolean }
           <span>
             {author.name} · {author.rate}
           </span>
-          <button className="btn primary" onClick={() => navigate(`/messages/${author.id}`)}>
+          <button className="btn primary" onClick={message}>
             Book {author.name.split(' ')[0]}
           </button>
         </div>
@@ -370,7 +385,7 @@ function PostCard({ post, promoted = false }: { post: Post; promoted?: boolean }
             </button>
           )
         ) : (
-          <button className="action push" onClick={() => navigate(`/messages/${author.id}`)}>
+          <button className="action push" onClick={message}>
             <Icon name="chat" size={18} /> Message
           </button>
         )}

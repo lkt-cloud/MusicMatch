@@ -16,6 +16,17 @@ export type MapMode = 'flat' | 'globe';
 export type Store = {
   /** True when connected to Supabase: real accounts, data and payments. */
   live: boolean;
+  /** False for guests browsing without an account (live mode only). */
+  signedIn: boolean;
+  /** We know roughly where you are: your profile's city, or a guest's shared device location. */
+  located: boolean;
+  /**
+   * For anything that needs an account (posting, liking, messaging…): true if you're signed
+   * in, otherwise opens the sign-in box with `why` and returns false.
+   */
+  requireSignIn: (why?: string) => boolean;
+  /** Device location from the map; guests use it as their location. */
+  setDeviceLocation: (coords: [number, number]) => void;
   meId: string;
   me: Creative;
   /** Everyone else with a profile on the map. */
@@ -165,6 +176,10 @@ function DemoProvider({ children }: { children: ReactNode }) {
 
   const store: Store = {
     live: false,
+    signedIn: true,
+    located: true,
+    requireSignIn: () => true,
+    setDeviceLocation: () => undefined,
     meId: ME_ID,
     me: state.me,
     creatives: CREATIVES,
@@ -259,12 +274,8 @@ function LiveGate({ children }: { children: ReactNode }) {
   }, []);
 
   if (session === undefined) return <Splash />;
-  if (!session) return <AuthPage />;
-  return (
-    <LiveProvider key={session.user.id} userId={session.user.id}>
-      {children}
-    </LiveProvider>
-  );
+  // Signed out, people browse as a guest and are asked to sign in only when they act.
+  return <LiveProvider userId={session?.user.id ?? null}>{children}</LiveProvider>;
 }
 
 function Splash({ text = 'Loading…' }: { text?: string }) {
@@ -277,14 +288,18 @@ function Splash({ text = 'Loading…' }: { text?: string }) {
 }
 
 const DELETED: Creative = { ...ME, id: 'deleted', name: 'Deleted account', handle: 'deleted', bio: '', city: '' };
+const GUEST_ID = 'guest';
+const GUEST: Creative = { ...ME, id: GUEST_ID, name: 'Guest', handle: 'guest', city: '', bio: '', genres: [], coords: [0, 90] };
 
-function LiveProvider({ userId, children }: { userId: string; children: ReactNode }) {
+function LiveProvider({ userId, children }: { userId: string | null; children: ReactNode }) {
   const [profiles, setProfiles] = useState<Creative[] | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [promoted, setPromoted] = useState<ActivePromotion[]>([]);
   const [mapMode, setMapModeState] = useState<MapMode>(readMapMode);
   const [error, setError] = useState<string | null>(null);
+  const [deviceCoords, setDeviceCoords] = useState<[number, number] | null>(null);
+  const [signInWhy, setSignInWhy] = useState<string | null>(null);
   const pendingPatch = useRef<Partial<Creative>>({});
   const saveTimer = useRef<number | undefined>(undefined);
 
@@ -296,9 +311,11 @@ function LiveProvider({ userId, children }: { userId: string; children: ReactNod
   const refreshPosts = useCallback(() => api.fetchPosts().then(setPosts).catch(fail), [fail]);
   const refreshPromotions = useCallback(() => api.fetchActivePromotions().then(setPromoted).catch(fail), [fail]);
 
-  // First load.
+  // Load everything, and again when someone signs in or out. (What's on screen stays put
+  // while it reloads, so a half-written post survives signing in.)
   useEffect(() => {
-    Promise.all([api.fetchProfiles(), api.fetchPosts(), api.fetchMessages(userId), api.fetchActivePromotions()])
+    if (userId) setSignInWhy(null);
+    Promise.all([api.fetchProfiles(), api.fetchPosts(), userId ? api.fetchMessages(userId) : [], api.fetchActivePromotions()])
       .then(([p, ps, convos, promos]) => {
         setProfiles(p);
         setPosts(ps);
@@ -315,20 +332,22 @@ function LiveProvider({ userId, children }: { userId: string; children: ReactNod
       window.clearTimeout(postsTimer);
       postsTimer = window.setTimeout(refreshPosts, 400);
     };
-    const channel = supabase!
-      .channel(`mm-${userId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, ({ new: row }) => {
-        const m = api.toMessage(row as Parameters<typeof api.toMessage>[0]);
-        const other = m.from === userId ? m.to : m.from;
-        setConversations((cs) => withMessage(cs, other, m, m.from !== userId));
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, ({ old }) => {
-        const id = (old as { id?: string }).id;
-        if (!id) return;
-        setConversations((cs) =>
-          cs.map((c) => ({ ...c, messages: c.messages.filter((m) => m.id !== id) })).filter((c) => c.messages.length),
-        );
-      })
+    const channel = supabase!.channel(`mm-${userId ?? GUEST_ID}`);
+    if (userId)
+      channel
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, ({ new: row }) => {
+          const m = api.toMessage(row as Parameters<typeof api.toMessage>[0]);
+          const other = m.from === userId ? m.to : m.from;
+          setConversations((cs) => withMessage(cs, other, m, m.from !== userId));
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, ({ old }) => {
+          const id = (old as { id?: string }).id;
+          if (!id) return;
+          setConversations((cs) =>
+            cs.map((c) => ({ ...c, messages: c.messages.filter((m) => m.id !== id) })).filter((c) => c.messages.length),
+          );
+        });
+    channel
       .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, refreshSoon)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, refreshSoon)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'post_likes' }, refreshSoon)
@@ -346,14 +365,26 @@ function LiveProvider({ userId, children }: { userId: string; children: ReactNod
   const creatives = useMemo(() => (profiles ?? []).filter((p) => p.id !== userId && p.city), [profiles, userId]);
 
   if (!profiles) return <Splash text={error ? `Couldn’t load: ${error}` : 'Loading…'} />;
-  const me = people.get(userId);
-  if (!me) return <Splash text="Setting up your profile…" />;
+  // Guests (and, for a moment, someone who's just signed up) get a placeholder profile.
+  const guest = { ...GUEST, coords: deviceCoords ?? GUEST.coords };
+  const me = (userId && people.get(userId)) || guest;
+  const meId = userId ?? GUEST_ID;
 
   const setMe = (patch: Partial<Creative>) => setProfiles((ps) => ps!.map((p) => (p.id === userId ? { ...p, ...patch } : p)));
 
+  const requireSignIn = (why?: string) => {
+    if (userId) return true;
+    setSignInWhy(why ?? 'Sign in to keep going.');
+    return false;
+  };
+
   const store: Store = {
     live: true,
-    meId: userId,
+    signedIn: !!userId,
+    located: !!userId || !!deviceCoords,
+    requireSignIn,
+    setDeviceLocation: setDeviceCoords,
+    meId,
     me,
     creatives,
     posts,
@@ -363,6 +394,7 @@ function LiveProvider({ userId, children }: { userId: string; children: ReactNod
     unreadCount: conversations.filter((c) => c.unread).length,
     person: (id) => people.get(id) ?? DELETED,
     async addPost(kind, text, attachments, featured = false) {
+      if (!requireSignIn('Sign in to post in Community.') || !userId) throw new Error('Sign in to post.');
       const post: Post = {
         id: uid(),
         authorId: userId,
@@ -388,6 +420,7 @@ function LiveProvider({ userId, children }: { userId: string; children: ReactNod
       return post.id;
     },
     deletePost(postId) {
+      if (!userId) return;
       const post = posts.find((p) => p.id === postId);
       setPosts((ps) => ps.filter((p) => p.id !== postId));
       if (me.featuredPostId === postId) setMe({ featuredPostId: undefined });
@@ -400,6 +433,7 @@ function LiveProvider({ userId, children }: { userId: string; children: ReactNod
       );
     },
     toggleLike(postId) {
+      if (!requireSignIn('Sign in to like posts.') || !userId) return;
       const liked = posts.find((p) => p.id === postId)?.likes.includes(userId);
       setPosts((ps) =>
         ps.map((p) => (p.id !== postId ? p : { ...p, likes: liked ? p.likes.filter((l) => l !== userId) : [...p.likes, userId] })),
@@ -410,6 +444,7 @@ function LiveProvider({ userId, children }: { userId: string; children: ReactNod
       });
     },
     addComment(postId, text) {
+      if (!requireSignIn('Sign in to reply.') || !userId) return;
       const id = uid();
       setPosts((ps) =>
         ps.map((p) => (p.id !== postId ? p : { ...p, comments: [...p.comments, { id, authorId: userId, text, at: Date.now() }] })),
@@ -420,11 +455,13 @@ function LiveProvider({ userId, children }: { userId: string; children: ReactNod
       });
     },
     sendMessage(withId, text, attachments) {
+      if (!requireSignIn('Sign in to send messages.') || !userId) return;
       const msg = { id: uid(), from: userId, text, at: Date.now(), ...(attachments?.length ? { attachments } : {}) };
       setConversations((cs) => withMessage(cs, withId, msg, false));
       api.insertMessage(msg.id, userId, withId, text, attachments).catch(fail);
     },
     deleteMessage(withId, messageId) {
+      if (!userId) return;
       const msg = conversations.find((c) => c.withId === withId)?.messages.find((m) => m.id === messageId);
       setConversations((cs) =>
         cs.map((c) => (c.withId === withId ? { ...c, messages: c.messages.filter((m) => m.id !== messageId) } : c)),
@@ -432,15 +469,17 @@ function LiveProvider({ userId, children }: { userId: string; children: ReactNod
       api.deleteMessage(messageId).then(() => msg && msg.from === userId && forgetFiles([msg]), fail);
     },
     deleteConversation(withId) {
+      if (!userId) return;
       setConversations((cs) => cs.filter((c) => c.withId !== withId));
       api.deleteConversation(userId, withId).catch(fail);
     },
     markRead(withId) {
-      if (!conversations.some((c) => c.withId === withId && c.unread)) return;
+      if (!userId || !conversations.some((c) => c.withId === withId && c.unread)) return;
       setConversations((cs) => cs.map((c) => (c.withId === withId ? { ...c, unread: false } : c)));
       api.markConversationRead(withId).catch(fail);
     },
     updateMe(patch) {
+      if (!requireSignIn('Sign in to set up your profile.') || !userId) return;
       // Typing in the profile form saves after a short pause, not on every keystroke.
       setMe(patch);
       pendingPatch.current = { ...pendingPatch.current, ...patch };
@@ -456,12 +495,13 @@ function LiveProvider({ userId, children }: { userId: string; children: ReactNod
       saveMapMode(mode);
     },
     refreshPromotions,
-    signOut: () => supabase!.auth.signOut(),
+    signOut: userId ? () => supabase!.auth.signOut() : undefined,
   };
 
   return (
     <StoreContext.Provider value={store}>
       {children}
+      {signInWhy && <AuthPage reason={signInWhy} onClose={() => setSignInWhy(null)} />}
       {error && (
         <div className="toast" role="alert">
           <span>{error}</span>

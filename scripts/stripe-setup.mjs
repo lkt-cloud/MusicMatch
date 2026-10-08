@@ -3,6 +3,9 @@
 //   STRIPE_SECRET_KEY=sk_test_... node scripts/stripe-setup.mjs
 //
 // Prices are found by "lookup key", so nothing needs to be copied into the code afterwards.
+// To change a price, edit the amounts below and run it again: Stripe prices can't be edited,
+// so a new price takes over the lookup key and the old one is archived. People already
+// subscribed keep paying what they signed up for.
 // Each price is in US dollars with a yen option: people in Japan pay in yen, everyone else
 // in dollars. Keep the amounts in step with src/data/pricing.ts.
 
@@ -36,8 +39,8 @@ const PRODUCTS = [
     lookupKey: 'mm_studio_listing_launch',
     name: 'Studio listing',
     description: 'A highlighted listing with a Verified Studio badge. Launch pricing.',
-    amount: 2000,
-    yen: 3000,
+    amount: 1500,
+    yen: 2250,
     interval: 'month',
   },
 ];
@@ -53,25 +56,43 @@ async function stripe(path, params) {
   return body;
 }
 
-for (const p of PRODUCTS) {
-  const existing = await stripe(`prices?active=true&lookup_keys[]=${p.lookupKey}`);
-  if (existing.data.length) {
-    // Already there: make sure it has the yen option (older runs created dollars only).
-    const id = existing.data[0].id;
-    await stripe(`prices/${id}`, { 'currency_options[jpy][unit_amount]': String(p.yen) });
-    console.log(`✓ ${p.name} already exists (${id}), yen price set to ¥${p.yen.toLocaleString('en-US')}`);
-    continue;
-  }
-  const product = await stripe('products', { name: p.name, description: p.description, 'metadata[app]': 'music-match' });
-  const price = await stripe('prices', {
-    product: product.id,
+const money = (p, per = p.interval ? '/' + p.interval : '') =>
+  `$${(p.amount / 100).toFixed(2)}${per} or ¥${p.yen.toLocaleString('en-US')}${per}`;
+
+const createPrice = (p, product, transfer = false) =>
+  stripe('prices', {
+    product,
     currency: 'usd',
     unit_amount: String(p.amount),
     'currency_options[jpy][unit_amount]': String(p.yen), // yen has no cents
     lookup_key: p.lookupKey,
+    ...(transfer ? { transfer_lookup_key: 'true' } : {}),
     ...(p.interval ? { 'recurring[interval]': p.interval } : {}),
   });
-  const per = p.interval ? '/' + p.interval : '';
-  console.log(`+ Created ${p.name}: $${(p.amount / 100).toFixed(2)}${per} or ¥${p.yen.toLocaleString('en-US')}${per} (${price.id})`);
+
+for (const p of PRODUCTS) {
+  const existing = await stripe(`prices?active=true&lookup_keys[]=${p.lookupKey}&expand[]=data.currency_options`);
+  const old = existing.data[0];
+  if (!old) {
+    const product = await stripe('products', { name: p.name, description: p.description, 'metadata[app]': 'music-match' });
+    const price = await createPrice(p, product.id);
+    console.log(`+ Created ${p.name}: ${money(p)} (${price.id})`);
+    continue;
+  }
+  if (old.unit_amount !== p.amount) {
+    // New amount: a fresh price takes the lookup key, and the old one is archived.
+    const price = await createPrice(p, old.product, true);
+    await stripe(`prices/${old.id}`, { active: 'false' });
+    await stripe(`products/${old.product}`, { description: p.description });
+    console.log(`↻ ${p.name} is now ${money(p)} (${price.id}); the old price is archived`);
+    continue;
+  }
+  if (old.currency_options?.jpy?.unit_amount !== p.yen) {
+    // Same dollar price; just the yen option to add or change.
+    await stripe(`prices/${old.id}`, { 'currency_options[jpy][unit_amount]': String(p.yen) });
+    console.log(`✓ ${p.name}: yen price set to ¥${p.yen.toLocaleString('en-US')}`);
+    continue;
+  }
+  console.log(`✓ ${p.name} is already ${money(p)}`);
 }
 console.log('\nDone. Prices are matched by lookup key, so there is nothing to copy.');

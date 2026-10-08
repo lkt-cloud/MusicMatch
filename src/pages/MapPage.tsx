@@ -13,6 +13,7 @@ import { Avatar } from '../components/Avatar';
 import { RoleLine } from '../components/RoleBadge';
 import { CreativeRow } from '../components/CreativeRow';
 import { splitPromoted, usePromotionFlags } from '../backend/promotions';
+import { Compass } from '../components/Compass';
 import { Icon } from '../components/Icon';
 import { SocialLinks } from '../components/SocialLinks';
 import { GenreChips } from '../components/Genres';
@@ -24,6 +25,7 @@ export function MapPage() {
   const { me, mapMode, setMapMode, creatives, located, requireSignIn, setDeviceLocation } = useStore();
   const navigate = useNavigate();
   const earth = useRef<EarthHandle>(null);
+  const [northDeg, setNorthDeg] = useState(0); // flat map rotation, for the compass
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -147,6 +149,7 @@ export function MapPage() {
           initialView={lastView.current}
           range={range}
           here={here}
+          onRotate={setNorthDeg}
         />
 
         <div className="map-top">
@@ -238,6 +241,9 @@ export function MapPage() {
         </div>
 
         <div className="map-controls">
+          {mapMode === 'flat' && (
+            <Compass degrees={northDeg} onRotate={(r) => earth.current?.rotateBy?.(r)} onReset={() => earth.current?.resetNorth?.()} />
+          )}
           <button className="icon-btn" onClick={() => earth.current?.zoomBy(2)} aria-label="Zoom in">
             <Icon name="plus" />
           </button>

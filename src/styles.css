@@ -220,7 +220,7 @@ button.genre:hover { background: var(--surface-3); }
 .map-stage { position: relative; overflow: clip; /* not hidden: hidden can still be scrolled when an off-screen pin gets focus */ background: radial-gradient(circle at 50% 50%, #151714 0%, var(--bg) 70%); }
 .map-stage.is-globe { background: radial-gradient(circle at 50% 45%, #141815 0%, var(--bg) 70%); }
 
-.earth { position: absolute; inset: 0; touch-action: none; }
+.earth { position: absolute; inset: 0; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .earth svg, .globe-canvas { display: block; cursor: grab; }
 .earth svg:active, .globe-canvas:active { cursor: grabbing; }
 .earth-rim { fill: #1a1c19; stroke: rgba(255, 255, 255, 0.08); stroke-width: 1; vector-effect: non-scaling-stroke; }
@@ -1093,3 +1093,5 @@ button, .nav-link, .chip { -webkit-user-select: none; user-select: none; touch-a
   .messages { padding-top: env(safe-area-inset-top); }
   .auth { padding-top: calc(24px + env(safe-area-inset-top)); }
 }
+.compass { touch-action: none; }
+.compass svg { transition: rotate 0.08s linear; }

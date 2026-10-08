@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { geoCircle, geoDistance, geoGraticule10, geoInterpolate, geoOrthographic, geoPath } from 'd3-geo';
-import { select } from 'd3-selection';
-import { zoom as d3zoom, zoomIdentity, type ZoomBehavior, type ZoomTransform } from 'd3-zoom';
 import type { Creative } from '../data/types';
 import { FAN_ZOOM, PinLayer, fanCityNames } from './PinLayer';
 import { DETAIL_ZOOM, useMapDetail } from './detail/useMapDetail';
 import { DetailLabels } from './detail/DetailLabels';
 import { drawDetail } from './detail/draw';
+import { useMapGestures, type Point } from './gestures';
 import { COARSE, DETAILED, MAX_ZOOM, STATE_LINES, borderOpacity, landColorAt, radiusCircle, stateOpacity, type EarthProps } from './shared';
 
 // The globe's `k` is its scale relative to fitting the viewport. Zoom levels shared
@@ -31,19 +30,21 @@ const clampK = (k: number) => Math.max(0.9, Math.min(MAX_K, k));
 export function Globe({ creatives, me, selectedId, onSelect, onViewChange, initialView, range, here, ref }: EarthProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const zoomRef = useRef<ZoomBehavior<HTMLCanvasElement, unknown> | null>(null);
-  const lastT = useRef<ZoomTransform>(zoomIdentity);
   const anim = useRef<number | null>(null);
   const settle = useRef<number | undefined>(undefined);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [moving, setMoving] = useState(false);
-  const [view, setView] = useState<GlobeView>(() =>
+  const [view, setViewState] = useState<GlobeView>(() =>
     initialView && initialView.zoom > 1.5
       ? { center: initialView.center, k: clampK(initialView.zoom / Math.PI) }
       : { center: [me.coords[0], clampLat(me.coords[1] * 0.6)], k: 1 },
   );
   const viewRef = useRef(view);
-  viewRef.current = view;
+  // Several pointer events can arrive between renders; each builds on the previous one.
+  const setView = (v: GlobeView) => {
+    viewRef.current = v;
+    setViewState(v);
+  };
 
   const baseR = Math.min(size.w, size.h) * 0.46 || 1;
   const zoom = view.k * Math.PI;
@@ -71,46 +72,38 @@ export function Globe({ creatives, me, selectedId, onSelect, onViewChange, initi
     settle.current = window.setTimeout(() => setMoving(false), 180);
   };
 
-  // Keep d3-zoom's idea of the scale in sync after we change it ourselves.
-  const syncZoom = (k: number) => {
-    const canvas = canvasRef.current;
-    if (canvas && zoomRef.current) select(canvas).call(zoomRef.current.transform, zoomIdentity.translate(lastT.current.x, lastT.current.y).scale(k));
+  const stopAnim = () => {
+    if (anim.current) cancelAnimationFrame(anim.current);
+    anim.current = null;
   };
 
-  // Drag to spin, scroll / pinch to zoom.
-  useEffect(() => {
-    if (!size.w) return;
-    const canvas = select(canvasRef.current!);
-    const z = d3zoom<HTMLCanvasElement, unknown>()
-      .scaleExtent([0.9, MAX_K])
-      .on('start', (e) => {
-        if (e.sourceEvent && anim.current) {
-          cancelAnimationFrame(anim.current);
-          anim.current = null;
-        }
-      })
-      .on('zoom', (e) => {
-        const prev = lastT.current;
-        lastT.current = e.transform;
-        if (!e.sourceEvent) return; // programmatic sync
-        const { center, k } = viewRef.current;
-        const next: GlobeView = { center, k: e.transform.k };
-        if (e.sourceEvent.type !== 'wheel') {
-          const degPerPx = 180 / Math.PI / (baseR * k);
-          const dx = e.transform.x - prev.x;
-          const dy = e.transform.y - prev.y;
-          next.center = [center[0] - dx * degPerPx, clampLat(center[1] + dy * degPerPx)];
-        }
-        setView(next);
-        bumpMoving();
-      });
-    zoomRef.current = z;
-    canvas.call(z).on('dblclick.zoom', null);
-    canvas.call(z.transform, zoomIdentity.scale(viewRef.current.k));
-    return () => {
-      canvas.on('.zoom', null);
-    };
-  }, [size.w, size.h, baseR]);
+  /** Degrees of arc per screen pixel at the middle of the globe. */
+  const degPerPx = (k: number) => 180 / Math.PI / (baseR * k);
+
+  /** Zoom by f keeping the spot under `at` in place (exact near the middle, close enough elsewhere). */
+  const zoomedAbout = (v: GlobeView, f: number, at: Point): GlobeView => {
+    const k = clampK(v.k * f);
+    const dx = at[0] - size.w / 2;
+    const dy = at[1] - size.h / 2;
+    const shift = degPerPx(v.k) - degPerPx(k);
+    return { k, center: [v.center[0] + dx * shift, clampLat(v.center[1] - dy * shift)] };
+  };
+
+  // Drag to spin, pinch / scroll to zoom toward your fingers or cursor, double-tap to zoom in.
+  useMapGestures(wrapRef, {
+    onStart: stopAnim,
+    onPan: (dx, dy) => {
+      const { center, k } = viewRef.current;
+      const d = degPerPx(k);
+      setView({ k, center: [center[0] - dx * d, clampLat(center[1] + dy * d)] });
+      bumpMoving();
+    },
+    onZoom: (f, at) => {
+      setView(zoomedAbout(viewRef.current, f, at));
+      bumpMoving();
+    },
+    onDoubleTap: (at) => animate(zoomedAbout(viewRef.current, 2, at), 350),
+  });
 
   const animate = (target: GlobeView, ms: number) => {
     if (anim.current) cancelAnimationFrame(anim.current);
@@ -128,10 +121,7 @@ export function Globe({ creatives, me, selectedId, onSelect, onViewChange, initi
       setView({ center: interp(e) as [number, number], k: Math.exp(l0 + (l1 - l0) * e - dip * Math.sin(Math.PI * t)) });
       bumpMoving();
       if (t < 1) anim.current = requestAnimationFrame(step);
-      else {
-        anim.current = null;
-        syncZoom(target.k);
-      }
+      else anim.current = null;
     };
     anim.current = requestAnimationFrame(step);
   };

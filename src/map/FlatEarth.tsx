@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { geoAzimuthalEquidistant, geoGraticule10, geoPath } from 'd3-geo';
-import { select } from 'd3-selection';
-import 'd3-transition';
-import { zoom as d3zoom, zoomIdentity, type ZoomBehavior, type ZoomTransform } from 'd3-zoom';
+import { interpolateZoom } from 'd3-interpolate';
 import type { Creative } from '../data/types';
 import { FAN_ZOOM, PinLayer, fanCityNames } from './PinLayer';
 import { useSky } from './sky';
+import { tween, useMapGestures, type Point } from './gestures';
+import { C, fromView, rotateAbout, svgTransform, toView, viewAt, wrapAngle, zoomAbout, type FlatView } from './flatView';
 import { DETAIL_ZOOM, useMapDetail } from './detail/useMapDetail';
 import { DetailLabels } from './detail/DetailLabels';
 import { LINE_STYLE, ROAD_STYLE, roadsAt, tilePaths } from './detail/draw';
@@ -17,10 +17,11 @@ import { DETAILED, LAND_STOPS, MAX_ZOOM, STATE_LINES, borderOpacity, radiusCircl
 // so the darkness fades in gradually instead of in visible steps.
 const NIGHT_LAYERS = Array.from({ length: 40 }, (_, i) => 104 - i * 0.7);
 
-// Everything is projected once into a fixed 1000×1000 "world" space; d3-zoom
-// then maps world space to the screen. That keeps the heavy land paths static.
+// Everything is projected once into a fixed 1000×1000 "world" space; the view (pan,
+// zoom, rotation) then maps world space to the screen. That keeps the heavy land paths static.
 const SIZE = 1000;
 const RADIUS = 485;
+const PAD = SIZE * 0.08; // how far past the disc's edge the view may wander
 
 const projection = geoAzimuthalEquidistant()
   .rotate([0, -90]) // north pole in the middle, like the classic flat-earth map
@@ -50,27 +51,47 @@ const countyPath = (c: Counties) => {
   return d;
 };
 
-export function FlatEarth({ creatives, me, selectedId, onSelect, onViewChange, initialView, range, here, ref }: EarthProps) {
+export function FlatEarth({ creatives, me, selectedId, onSelect, onViewChange, onRotate, initialView, range, here, ref }: EarthProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
-  const zoomRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const startView = useRef(initialView);
   const [size, setSize] = useState({ w: 0, h: 0 });
-  const [t, setT] = useState<ZoomTransform>(zoomIdentity);
-  // True while the user is dragging or scrolling, so the heavier street detail can be skipped.
+  const [view, setViewState] = useState<FlatView>({ k: 1, o: [0, 0], a: 0 });
+  const viewRef = useRef(view);
+  const cancelAnim = useRef<(() => void) | null>(null);
+  // True while the user is dragging or pinching, so the heavier street detail can be skipped.
   const [moving, setMoving] = useState(false);
 
   const fitK = (Math.min(size.w, size.h) / SIZE) * 0.94 || 1;
-  const rel = t.k / fitK; // 1 = whole disc fits the viewport
+  const rel = view.k / fitK; // 1 = whole disc fits the viewport
+  const limits = useRef({ fitK, w: size.w, h: size.h });
+  limits.current = { fitK, w: size.w, h: size.h };
+  const centre = (): Point => [limits.current.w / 2, limits.current.h / 2];
 
-  const fitTransform = () =>
-    zoomIdentity.translate((size.w - SIZE * fitK) / 2, (size.h - SIZE * fitK) / 2).scale(fitK);
+  /** Applies a change, keeping the zoom in range and the disc on screen. */
+  const setView = useCallback((change: (v: FlatView) => FlatView) => {
+    const { fitK: fk, w, h } = limits.current;
+    let v = change(viewRef.current);
+    const k = Math.max(fk * 0.9, Math.min(fk * MAX_ZOOM, v.k));
+    if (k !== v.k) v = zoomAbout(v, k / v.k, [w / 2, h / 2]);
+    // The middle of the screen has to stay over (or near) the disc.
+    const mid = fromView(v, [w / 2, h / 2]);
+    const d = Math.hypot(mid[0] - C, mid[1] - C);
+    const lim = RADIUS + PAD;
+    if (d > lim) v = viewAt([C + ((mid[0] - C) * lim) / d, C + ((mid[1] - C) * lim) / d], [w / 2, h / 2], v.k, v.a);
+    viewRef.current = v;
+    setViewState(v);
+  }, []);
 
-  const centeredOn = (coords: [number, number], zoom: number) => {
-    const [x, y] = project(coords);
-    const k = fitK * zoom;
-    return zoomIdentity.translate(size.w / 2 - k * x, size.h / 2 - k * y).scale(k);
+  const stopAnim = () => {
+    cancelAnim.current?.();
+    cancelAnim.current = null;
   };
+  const animate = (ms: number, frame: (e: number) => FlatView) => {
+    stopAnim();
+    cancelAnim.current = tween(ms, (e) => setView(() => frame(e)), () => (cancelAnim.current = null));
+  };
+
+  const fitView = (): FlatView => ({ k: limits.current.fitK, a: 0, o: centre() });
 
   useEffect(() => {
     const el = wrapRef.current!;
@@ -82,39 +103,78 @@ export function FlatEarth({ creatives, me, selectedId, onSelect, onViewChange, i
     return () => ro.disconnect();
   }, []);
 
-  // (Re)configure zoom when the viewport size changes.
+  // First size: open where we were asked to (or on the whole disc). Later resizes keep the
+  // same spot in the middle.
+  const lastSize = useRef<{ w: number; h: number } | null>(null);
   useEffect(() => {
     if (!size.w || !size.h) return;
-    const svg = select(svgRef.current!);
-    const pad = SIZE * 0.08;
-    const z = d3zoom<SVGSVGElement, unknown>()
-      .extent([[0, 0], [size.w, size.h]])
-      .scaleExtent([fitK * 0.9, fitK * MAX_ZOOM])
-      .translateExtent([[-pad, -pad], [SIZE + pad, SIZE + pad]])
-      .on('start', (e) => e.sourceEvent && setMoving(true))
-      .on('zoom', (e) => setT(e.transform))
-      .on('end', () => setMoving(false));
-    zoomRef.current = z;
-    svg.call(z).on('dblclick.zoom', null);
-    const start = startView.current;
-    startView.current = undefined;
-    svg.call(z.transform, start && start.zoom > 1.5 ? centeredOn(start.center, start.zoom) : fitTransform());
-    return () => {
-      svg.on('.zoom', null);
-    };
+    const prev = lastSize.current;
+    lastSize.current = size;
+    if (!prev) {
+      const start = startView.current;
+      startView.current = undefined;
+      setView(() => (start && start.zoom > 1.5 ? viewAt(project(start.center), centre(), fitK * start.zoom, 0) : fitView()));
+    } else setView((v) => ({ ...v, o: [v.o[0] + (size.w - prev.w) / 2, v.o[1] + (size.h - prev.h) / 2] }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [size.w, size.h]);
 
-  const animateTo = (next: ZoomTransform, ms: number) =>
-    select(svgRef.current!).transition().duration(ms).call(zoomRef.current!.transform, next);
+  useMapGestures(wrapRef, {
+    onStart: () => {
+      stopAnim();
+      setMoving(true);
+    },
+    onPan: (dx, dy) => setView((v) => ({ ...v, o: [v.o[0] + dx, v.o[1] + dy] })),
+    onZoom: (f, at) => setView((v) => zoomAbout(v, f, at)),
+    onRotate: (da, at) => setView((v) => rotateAbout(v, da, at)),
+    onDoubleTap: (at) => {
+      const v0 = viewRef.current;
+      animate(300, (e) => zoomAbout(v0, 2 ** e, at));
+    },
+    onEnd: () => setMoving(false),
+  });
+
+  /** Smooth zoom-out-and-in flight to a world point (van Wijk & Nuij), keeping the rotation. */
+  const flyToWorld = (w: [number, number], k: number, ms: number) => {
+    const v0 = viewRef.current;
+    const span = Math.min(limits.current.w, limits.current.h);
+    const from = fromView(v0, centre());
+    const interp = interpolateZoom([from[0], from[1], span / v0.k], [w[0], w[1], span / k]);
+    animate(ms, (e) => {
+      const [x, y, width] = interp(e);
+      return viewAt([x, y], centre(), span / width, v0.a);
+    });
+  };
 
   useImperativeHandle(ref, () => ({
-    flyTo: (coords, zoom = 140) => animateTo(centeredOn(coords, zoom), 1400),
-    zoomBy: (factor) => select(svgRef.current!).transition().duration(350).call(zoomRef.current!.scaleBy, factor),
-    reset: () => animateTo(fitTransform(), 1000),
+    flyTo: (coords, zoom = 140) => flyToWorld(project(coords), limits.current.fitK * zoom, 1400),
+    zoomBy: (factor) => {
+      const v0 = viewRef.current;
+      animate(350, (e) => zoomAbout(v0, factor ** e, centre()));
+    },
+    reset: () => {
+      const v0 = viewRef.current;
+      const from = fromView(v0, centre());
+      const a0 = wrapAngle(v0.a);
+      const [l0, l1] = [Math.log(v0.k), Math.log(limits.current.fitK)];
+      animate(1000, (e) => viewAt([from[0] + (C - from[0]) * e, from[1] + (C - from[1]) * e], centre(), Math.exp(l0 + (l1 - l0) * e), a0 * (1 - e)));
+    },
+    rotateBy: (radians) => {
+      stopAnim();
+      setView((v) => rotateAbout(v, radians, centre()));
+    },
+    resetNorth: () => {
+      const v0 = viewRef.current;
+      const a0 = wrapAngle(v0.a);
+      animate(450, (e) => rotateAbout(v0, -a0 * e, centre()));
+    },
   }));
 
-  const toScreen = useCallback((coords: [number, number]) => t.apply(project(coords)) as [number, number], [t]);
+  // Tell the page which way is up (for the compass).
+  useEffect(() => {
+    onRotate?.((wrapAngle(view.a) * 180) / Math.PI);
+  }, [view.a, onRotate]);
+
+  const toScreen = useCallback((coords: [number, number]) => toView(view, project(coords)), [view]);
 
   // Report which creatives are on screen.
   useEffect(() => {
@@ -123,9 +183,9 @@ export function FlatEarth({ creatives, me, selectedId, onSelect, onViewChange, i
       const [x, y] = toScreen(c.coords);
       return x > -20 && y > -20 && x < size.w + 20 && y < size.h + 20;
     });
-    const center = projection.invert!(t.invert([size.w / 2, size.h / 2])) as [number, number];
+    const center = projection.invert!(fromView(view, [size.w / 2, size.h / 2])) as [number, number];
     onViewChange(visible, center, rel);
-  }, [t, creatives, toScreen, size, rel, onViewChange]);
+  }, [view, creatives, toScreen, size, rel, onViewChange]);
 
   const zoomToCluster = (members: Creative[]) => {
     const pts = members.map((m) => project(m.coords));
@@ -133,8 +193,8 @@ export function FlatEarth({ creatives, me, selectedId, onSelect, onViewChange, i
     const ys = pts.map((p) => p[1]);
     const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
     const span = Math.max(x1 - x0, y1 - y0, 0.01);
-    const k = Math.min(fitK * MAX_ZOOM, Math.max(t.k * 2.5, (Math.min(size.w, size.h) * 0.5) / span));
-    animateTo(zoomIdentity.translate(size.w / 2 - (k * (x0 + x1)) / 2, size.h / 2 - (k * (y0 + y1)) / 2).scale(k), 900);
+    const k = Math.min(fitK * MAX_ZOOM, Math.max(view.k * 2.5, (Math.min(size.w, size.h) * 0.5) / span));
+    flyToWorld([(x0 + x1) / 2, (y0 + y1) / 2], k, 900);
   };
 
   const selected = creatives.find((c) => c.id === selectedId);
@@ -154,14 +214,14 @@ export function FlatEarth({ creatives, me, selectedId, onSelect, onViewChange, i
   // Roads, city & county lines, water and place names once you're zoomed in.
   const invert = useCallback(
     (p: [number, number]) => {
-      const [wx, wy] = t.invert(p);
+      const [wx, wy] = fromView(view, p);
       if (Math.hypot(wx - SIZE / 2, wy - SIZE / 2) > RADIUS) return null; // off the disc
       return projection.invert!([wx, wy]) as [number, number];
     },
-    [t],
+    [view],
   );
   const crowdCities = useMemo(() => fanCityNames(creatives), [creatives]);
-  const detail = useMapDetail({ zoom: rel, size, invert, viewKey: t.toString() });
+  const detail = useMapDetail({ zoom: rel, size, invert, viewKey: svgTransform(view) });
   const detailAlpha = Math.max(0, Math.min(1, (rel - DETAIL_ZOOM) / 15));
   // Zoomed into a region, night is lightened a little so streets and labels stay readable.
   const nightOpacity = rel < 20 ? 1 : Math.max(0.62, 1 - (rel - 20) / 180);
@@ -169,7 +229,7 @@ export function FlatEarth({ creatives, me, selectedId, onSelect, onViewChange, i
 
   return (
     <div className="earth" ref={wrapRef}>
-      <svg ref={svgRef} width={size.w} height={size.h} role="img" aria-label="Map of creatives" onClick={() => onSelect(null)}>
+      <svg width={size.w} height={size.h} role="img" aria-label="Map of creatives" onClick={() => onSelect(null)}>
         <defs>
           {/* In map units (not per shape), so tile water matches the ocean around it. */}
           <radialGradient id="ocean" gradientUnits="userSpaceOnUse" cx={SIZE / 2} cy={SIZE / 2} r={RADIUS}>
@@ -182,7 +242,7 @@ export function FlatEarth({ creatives, me, selectedId, onSelect, onViewChange, i
             ))}
           </radialGradient>
         </defs>
-        <g transform={t.toString()}>
+        <g transform={svgTransform(view)}>
           {GROOVES.map((r, i) => (
             <circle key={r} cx={SIZE / 2} cy={SIZE / 2} r={r} className="earth-groove" style={{ opacity: 0.5 - i * 0.05 }} />
           ))}

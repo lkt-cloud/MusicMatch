@@ -23,6 +23,9 @@ export type EarthHandle = {
   flyTo: (coords: [number, number], zoom?: number) => void;
   zoomBy: (factor: number) => void;
   reset: () => void;
+  /** Flat map only: spin the disc (radians, clockwise) / turn it back so north is up. */
+  rotateBy?: (radians: number) => void;
+  resetNorth?: () => void;
 };
 
 export type EarthProps = {
@@ -37,6 +40,8 @@ export type EarthProps = {
   range?: { center: [number, number]; miles: number } | null;
   /** Where you actually are (device location), if you shared it; otherwise your profile location is used. */
   here?: [number, number] | null;
+  /** Flat map: called with the current rotation in degrees (0 = the usual way up). */
+  onRotate?: (degrees: number) => void;
   ref?: Ref<EarthHandle>;
 };
 

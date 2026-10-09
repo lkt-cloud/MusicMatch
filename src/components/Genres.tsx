@@ -1,4 +1,4 @@
-import { GENRES, genreInfo } from '../data/genres';
+import { GENRES, genreInfo, toGenreIds } from '../data/genres';
 import { Icon } from './Icon';
 
 /** Colour-coded genre tags. */
@@ -30,7 +30,7 @@ export function GenrePicker({ value, onChange }: { value: string[]; onChange: (i
             className={`genre${on ? ' is-on' : ''}`}
             style={{ ['--genre' as string]: g.color }}
             aria-pressed={on}
-            onClick={() => onChange(on ? value.filter((x) => x !== g.id) : [...value, g.id])}
+            onClick={() => onChange(toGenreIds(on ? value.filter((x) => x !== g.id) : [...value, g.id]))}
           >
             {on ? <Icon name="close" size={12} /> : <i className="genre-dot" aria-hidden />}
             {g.label}

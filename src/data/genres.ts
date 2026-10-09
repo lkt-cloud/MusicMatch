@@ -53,6 +53,10 @@ const ALIASES: Record<string, string[]> = {
 };
 
 /** Maps any mix of ids, labels or old free-text names onto genre ids (unknowns dropped). */
+/**
+ * Turns anything genre-like (ids, labels, old free-text tags) into known genre ids: no
+ * duplicates, nothing unknown, always in the catalogue's order so profiles look consistent.
+ */
 export function toGenreIds(values: string[]): string[] {
   const out = new Set<string>();
   for (const v of values) {
@@ -64,5 +68,5 @@ export function toGenreIds(values: string[]): string[] {
       else ALIASES[key]?.forEach((id) => out.add(id));
     }
   }
-  return [...out];
+  return GENRES.filter((g) => out.has(g.id)).map((g) => g.id);
 }

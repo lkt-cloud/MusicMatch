@@ -18,8 +18,9 @@ You'll need about 45 minutes. Do the parts in order.
    - Do the same, one at a time and in this order, with:
      - `supabase/migrations/20261008000002_promotions.sql`
      - `supabase/migrations/20261009000001_location_rates.sql`
-   - You should see "Success. No rows returned" each time (3 in total).
-   - If you already ran the first two earlier, just run the third one.
+     - `supabase/migrations/20261010000001_genre_check.sql`
+   - You should see "Success. No rows returned" each time (4 in total).
+   - If you already ran some earlier, just run the ones you haven't.
 3. Get your keys: **Project Settings → API**.
    - In this project folder, copy `.env.example` to a new file named `.env`.
    - Paste the **Project URL** into `VITE_SUPABASE_URL` and the **anon public** key into `VITE_SUPABASE_ANON_KEY`.

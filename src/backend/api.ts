@@ -2,6 +2,7 @@
 // data uses (Creative, Post, Conversation…) so the pages don't care which mode is on.
 
 import { supabase } from './client';
+import { toGenreIds } from '../data/genres';
 import type { Attachment, Conversation, Creative, Message, Post, PostKind, Role, Social } from '../data/types';
 
 const db = () => {
@@ -52,7 +53,7 @@ const toCreative = (r: ProfileRow): Creative => ({
   roleRates: r.role_rates ?? {},
   rating: 0,
   reviews: 0,
-  genres: r.genres ?? [],
+  genres: toGenreIds(r.genres ?? []),
   available: r.available,
   work: [],
   socials: r.socials ?? [],
@@ -76,7 +77,7 @@ export function profilePatch(c: Partial<Creative>) {
   if ('rate' in c) row.rate = c.rate;
   if ('roleRates' in c) row.role_rates = c.roleRates ?? {};
   if ('exactLocation' in c) row.exact_location = !!c.exactLocation;
-  if ('genres' in c) row.genres = c.genres;
+  if ('genres' in c) row.genres = toGenreIds(c.genres ?? []);
   if ('available' in c) row.available = c.available;
   if ('socials' in c) row.socials = c.socials;
   if ('avatarId' in c) row.avatar_path = c.avatarId ?? null;

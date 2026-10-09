@@ -239,7 +239,7 @@ button.genre:active { scale: 0.95; }
 .earth-overlay > * { position: absolute; left: 0; top: 0; }
 
 /* Night side of the flat map: stacked translucent layers make the twilight edge soft. */
-.earth-night path { fill: rgba(5, 8, 14, 0.033); stroke: none; pointer-events: none; }
+.earth-night { pointer-events: none; }
 
 /* The sun, directly over the point where it's overhead right now. */
 .sun-marker { translate: -50% -50%; display: grid; place-items: center; pointer-events: auto; cursor: default; }

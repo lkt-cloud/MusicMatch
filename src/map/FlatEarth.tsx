@@ -10,18 +10,19 @@ import { DETAIL_ZOOM, useMapDetail } from './detail/useMapDetail';
 import { DetailLabels } from './detail/DetailLabels';
 import { LINE_STYLE, ROAD_STYLE, roadsAt, tilePaths } from './detail/draw';
 import type { Counties } from './detail/counties';
-import { DETAILED, LAND_STOPS, MAX_ZOOM, STATE_LINES, borderOpacity, radiusCircle, stateOpacity, type EarthProps } from './shared';
+import { COARSE, DETAILED, LAND_STOPS, MAX_ZOOM, STATE_LINES, borderOpacity, radiusCircle, stateOpacity, type EarthProps } from './shared';
 
-// Night is drawn as many stacked, faint circles around the point opposite the sun.
-// Their radii step 0.7° apart across a ~28° band centred near the true terminator (90°),
-// so the darkness fades in gradually instead of in visible steps.
+// Night is many stacked, faint circles around the point opposite the sun. Their radii step
+// 0.7° apart across a ~28° band centred near the true terminator (90°), so the darkness fades
+// in gradually instead of in visible steps. They're painted once into an image (refreshed
+// each minute as the sun moves) so the map doesn't redraw 40 shapes on every frame.
 const NIGHT_LAYERS = Array.from({ length: 40 }, (_, i) => 104 - i * 0.7);
+const NIGHT_PX = 1536;
 
 // Everything is projected once into a fixed 1000×1000 "world" space; the view (pan,
 // zoom, rotation) then maps world space to the screen. That keeps the heavy land paths static.
 const SIZE = 1000;
 const RADIUS = 485;
-const PAD = SIZE * 0.08; // how far past the disc's edge the view may wander
 
 const projection = geoAzimuthalEquidistant()
   .rotate([0, -90]) // north pole in the middle, like the classic flat-earth map
@@ -39,10 +40,32 @@ const ICE = path(DETAILED.ice) ?? '';
 const BORDERS = path(DETAILED.borders) ?? '';
 const STATES = path(STATE_LINES) ?? '';
 const GRATICULE = path(geoGraticule10()) ?? '';
+// Lighter outlines drawn while you're moving the map zoomed out (swapped back when you stop).
+const LAND_LITE = path(COARSE.land) ?? '';
+const BORDERS_LITE = path(COARSE.borders) ?? '';
+const LITE_BELOW = 6; // zoom below which the light outlines are used while moving
 // Concentric "record grooves" around the disc.
 const GROOVES = Array.from({ length: 9 }, (_, i) => RADIUS + 22 + i * 16);
 
 const project = (coords: [number, number]) => projection(coords) as [number, number];
+
+/** The night shade as an image in world space (one draw per frame instead of 40 paths). */
+function paintNight(sun: [number, number]): string {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = NIGHT_PX;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return '';
+  ctx.scale(NIGHT_PX / SIZE, NIGHT_PX / SIZE);
+  const draw = geoPath(projection, ctx);
+  const antisolar: [number, number] = [sun[0] + 180, -sun[1]];
+  ctx.fillStyle = 'rgba(5, 8, 14, 0.033)';
+  for (const deg of NIGHT_LAYERS) {
+    ctx.beginPath();
+    draw(radiusCircle(antisolar, (deg * Math.PI * 3958.8) / 180));
+    ctx.fill();
+  }
+  return canvas.toDataURL('image/png');
+}
 
 const countyPaths = new WeakMap<Counties, string>();
 const countyPath = (c: Counties) => {
@@ -57,6 +80,27 @@ export function FlatEarth({ creatives, me, selectedId, onSelect, onViewChange, o
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [view, setViewState] = useState<FlatView>({ k: 1, o: [0, 0], a: 0 });
   const viewRef = useRef(view);
+  // Touch screens can send 120+ move events a second (two per pinch); the map only redraws
+  // once per frame with the latest view.
+  const frame = useRef<{ raf: number; timer: number } | null>(null);
+  const flush = useCallback(() => {
+    if (!frame.current) return;
+    cancelAnimationFrame(frame.current.raf);
+    window.clearTimeout(frame.current.timer);
+    frame.current = null;
+    setViewState(viewRef.current);
+  }, []);
+  const scheduleDraw = useCallback(() => {
+    if (frame.current) return;
+    // The timeout is a backstop for when frames are paused (a hidden tab).
+    frame.current = { raf: requestAnimationFrame(() => flush()), timer: window.setTimeout(() => flush(), 50) };
+  }, [flush]);
+  useEffect(() => () => {
+    if (frame.current) {
+      cancelAnimationFrame(frame.current.raf);
+      window.clearTimeout(frame.current.timer);
+    }
+  }, []);
   const cancelAnim = useRef<(() => void) | null>(null);
   // True while the user is dragging or pinching, so the heavier street detail can be skipped.
   const [moving, setMoving] = useState(false);
@@ -67,31 +111,40 @@ export function FlatEarth({ creatives, me, selectedId, onSelect, onViewChange, o
   limits.current = { fitK, w: size.w, h: size.h };
   const centre = (): Point => [limits.current.w / 2, limits.current.h / 2];
 
-  /** Applies a change, keeping the zoom in range and the disc on screen. */
+  /**
+   * Applies a change, keeping the zoom in range and the disc on screen. Fully zoomed out
+   * (the whole disc fitting the screen) it stays centred; the closer you zoom in, the
+   * further you can pan, so the disc can never drift off to one side.
+   */
   const setView = useCallback((change: (v: FlatView) => FlatView) => {
     const { fitK: fk, w, h } = limits.current;
     let v = change(viewRef.current);
-    const k = Math.max(fk * 0.9, Math.min(fk * MAX_ZOOM, v.k));
+    const k = Math.max(fk, Math.min(fk * MAX_ZOOM, v.k));
     if (k !== v.k) v = zoomAbout(v, k / v.k, [w / 2, h / 2]);
-    // The middle of the screen has to stay over (or near) the disc.
     const mid = fromView(v, [w / 2, h / 2]);
     const d = Math.hypot(mid[0] - C, mid[1] - C);
-    const lim = RADIUS + PAD;
-    if (d > lim) v = viewAt([C + ((mid[0] - C) * lim) / d, C + ((mid[1] - C) * lim) / d], [w / 2, h / 2], v.k, v.a);
+    const lim = RADIUS * (1 - fk / v.k);
+    if (d > lim) v = d > 0 ? viewAt([C + ((mid[0] - C) * lim) / d, C + ((mid[1] - C) * lim) / d], [w / 2, h / 2], v.k, v.a) : v;
     // Never accept a broken view (e.g. maths done before the map knew its size): one NaN
     // would stick, and every later drag would just add to it, freezing the map.
     if (![v.k, v.o[0], v.o[1], v.a].every(Number.isFinite) || v.k <= 0) return;
     viewRef.current = v;
-    setViewState(v);
-  }, []);
+    scheduleDraw();
+  }, [scheduleDraw]);
 
   const stopAnim = () => {
-    cancelAnim.current?.();
+    if (!cancelAnim.current) return;
+    cancelAnim.current();
     cancelAnim.current = null;
+    setMoving(false);
   };
-  const animate = (ms: number, frame: (e: number) => FlatView) => {
+  const animate = (ms: number, step: (e: number) => FlatView) => {
     stopAnim();
-    cancelAnim.current = tween(ms, (e) => setView(() => frame(e)), () => (cancelAnim.current = null));
+    setMoving(true);
+    cancelAnim.current = tween(ms, (e) => setView(() => step(e)), () => {
+      cancelAnim.current = null;
+      setMoving(false);
+    });
   };
 
   const fitView = (): FlatView => ({ k: limits.current.fitK, a: 0, o: centre() });
@@ -124,6 +177,7 @@ export function FlatEarth({ creatives, me, selectedId, onSelect, onViewChange, o
       const start = startView.current;
       startView.current = undefined;
       setView(() => (start && start.zoom > 1.5 ? viewAt(project(start.center), centre(), fitK * start.zoom, 0) : fitView()));
+      flush();
       const queued = pending.current;
       pending.current = null;
       queued?.();
@@ -143,7 +197,10 @@ export function FlatEarth({ creatives, me, selectedId, onSelect, onViewChange, o
       const v0 = viewRef.current;
       animate(300, (e) => zoomAbout(v0, 2 ** e, at));
     },
-    onEnd: () => setMoving(false),
+    onEnd: () => {
+      flush();
+      setMoving(false);
+    },
   });
 
   /** Smooth zoom-out-and-in flight to a world point (van Wijk & Nuij), keeping the rotation. */
@@ -189,16 +246,26 @@ export function FlatEarth({ creatives, me, selectedId, onSelect, onViewChange, o
 
   const toScreen = useCallback((coords: [number, number]) => toView(view, project(coords)), [view]);
 
-  // Report which creatives are on screen.
+  // Report which creatives are on screen (for the list). At most every 150 ms while moving:
+  // re-rendering the whole page on every frame is what made dragging feel heavy.
+  const lastReport = useRef(0);
   useEffect(() => {
     if (!onViewChange || !size.w) return;
-    const visible = creatives.filter((c) => {
-      const [x, y] = toScreen(c.coords);
-      return x > -20 && y > -20 && x < size.w + 20 && y < size.h + 20;
-    });
-    const center = projection.invert!(fromView(view, [size.w / 2, size.h / 2])) as [number, number];
-    onViewChange(visible, center, rel);
-  }, [view, creatives, toScreen, size, rel, onViewChange]);
+    const report = () => {
+      lastReport.current = performance.now();
+      const v = viewRef.current;
+      const visible = creatives.filter((c) => {
+        const [x, y] = toView(v, project(c.coords));
+        return x > -20 && y > -20 && x < size.w + 20 && y < size.h + 20;
+      });
+      const center = projection.invert!(fromView(v, [size.w / 2, size.h / 2])) as [number, number];
+      onViewChange(visible, center, v.k / limits.current.fitK);
+    };
+    const wait = 150 - (performance.now() - lastReport.current);
+    if (wait <= 0) return report();
+    const t = window.setTimeout(report, wait);
+    return () => window.clearTimeout(t);
+  }, [view, creatives, size, onViewChange]);
 
   const zoomToCluster = (members: Creative[]) => {
     const pts = members.map((m) => project(m.coords));
@@ -219,10 +286,8 @@ export function FlatEarth({ creatives, me, selectedId, onSelect, onViewChange, o
   const rangePath = useMemo(() => (range ? path(radiusCircle(range.center, range.miles)) : null), [range]);
 
   const sky = useSky();
-  const nightPaths = useMemo(() => {
-    const antisolar: [number, number] = [sky.sun[0] + 180, -sky.sun[1]];
-    return NIGHT_LAYERS.map((deg) => path(radiusCircle(antisolar, (deg * Math.PI * 3958.8) / 180)) ?? '');
-  }, [sky]);
+  const nightImage = useMemo(() => paintNight(sky.sun), [sky]);
+  const lite = moving && rel < LITE_BELOW;
 
   // Roads, city & county lines, water and place names once you're zoomed in.
   const invert = useCallback(
@@ -263,7 +328,7 @@ export function FlatEarth({ creatives, me, selectedId, onSelect, onViewChange, o
           <circle cx={SIZE / 2} cy={SIZE / 2} r={RADIUS} fill="url(#ocean)" />
           <path d={GRATICULE} className="earth-graticule" />
           <path d={ICE} className="earth-ice" />
-          <path d={LAND} className="earth-land" />
+          <path d={lite ? LAND_LITE : LAND} className="earth-land" />
           {tilePathList.length > 0 && (
             <g className="detail" style={{ opacity: detailAlpha }}>
               {tilePathList.map(({ key, d }) => (
@@ -274,13 +339,11 @@ export function FlatEarth({ creatives, me, selectedId, onSelect, onViewChange, o
               ))}
             </g>
           )}
-          <path d={STATES} className="earth-states" style={{ opacity: stateOpacity(rel) }} />
-          <path d={BORDERS} className="earth-borders" style={{ opacity: borderOpacity(rel) }} />
-          <g className="earth-night" aria-hidden style={{ opacity: nightOpacity }}>
-            {nightPaths.map((d, i) => (
-              <path key={i} d={d} />
-            ))}
-          </g>
+          {!lite && <path d={STATES} className="earth-states" style={{ opacity: stateOpacity(rel) }} />}
+          <path d={lite ? BORDERS_LITE : BORDERS} className="earth-borders" style={{ opacity: borderOpacity(rel) }} />
+          {nightImage && (
+            <image href={nightImage} x={0} y={0} width={SIZE} height={SIZE} className="earth-night" aria-hidden style={{ opacity: nightOpacity }} />
+          )}
           {/* Lines and roads sit above the night shade, so after dark the road network glows. */}
           {tilePathList.length > 0 && (
             <g className="detail" style={{ opacity: detailAlpha }}>

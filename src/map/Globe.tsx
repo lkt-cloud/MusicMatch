@@ -41,11 +41,26 @@ export function Globe({ creatives, me, selectedId, onSelect, onViewChange, initi
       : { center: [me.coords[0], clampLat(me.coords[1] * 0.6)], k: 1 },
   );
   const viewRef = useRef(view);
-  // Several pointer events can arrive between renders; each builds on the previous one.
+  // Several pointer events can arrive between frames; each builds on the previous one, and
+  // the globe redraws once per frame with the latest (a timeout covers paused frames).
+  const frame = useRef<{ raf: number; timer: number } | null>(null);
+  const flush = () => {
+    if (!frame.current) return;
+    cancelAnimationFrame(frame.current.raf);
+    window.clearTimeout(frame.current.timer);
+    frame.current = null;
+    setViewState(viewRef.current);
+  };
   const setView = (v: GlobeView) => {
     viewRef.current = v;
-    setViewState(v);
+    if (!frame.current) frame.current = { raf: requestAnimationFrame(flush), timer: window.setTimeout(flush, 50) };
   };
+  useEffect(() => () => {
+    if (frame.current) {
+      cancelAnimationFrame(frame.current.raf);
+      window.clearTimeout(frame.current.timer);
+    }
+  }, []);
 
   const baseR = Math.min(size.w, size.h) * 0.46 || 1;
   const zoom = view.k * Math.PI;
@@ -283,13 +298,24 @@ export function Globe({ creatives, me, selectedId, onSelect, onViewChange, initi
     [view, size, baseR],
   );
 
-  useEffect(() => {
-    if (!onViewChange || !size.w) return;
+  // Report what's on screen to the page at most every 150 ms while moving, so the list
+  // under the map isn't rebuilt on every frame.
+  const lastReport = useRef(0);
+  const reportRef = useRef(() => {});
+  reportRef.current = () => {
+    lastReport.current = performance.now();
     const visible = creatives.filter((c) => {
       const p = toScreen(c.coords);
       return p && p[0] > -20 && p[1] > -20 && p[0] < size.w + 20 && p[1] < size.h + 20;
     });
-    onViewChange(visible, view.center, zoom);
+    onViewChange?.(visible, view.center, zoom);
+  };
+  useEffect(() => {
+    if (!onViewChange || !size.w) return;
+    const wait = 150 - (performance.now() - lastReport.current);
+    if (wait <= 0) return reportRef.current();
+    const t = window.setTimeout(() => reportRef.current(), wait);
+    return () => window.clearTimeout(t);
   }, [toScreen, creatives, size, view, zoom, onViewChange]);
 
   const zoomToCluster = (members: Creative[]) => {

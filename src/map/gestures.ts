@@ -137,8 +137,26 @@ export function useMapGestures(target: React.RefObject<HTMLElement | null>, hand
       samples = [];
     };
 
+    /**
+     * Forget every finger we think is down. Browsers sometimes never send the "lifted"
+     * event (a location or permission pop-up appearing mid-touch, switching apps), and a
+     * leftover finger would turn every later touch into a lopsided pinch that won't pan.
+     */
+    const resetPointers = () => {
+      if (!pointers.size) return;
+      pointers.clear();
+      dragging = false;
+      rotating = false;
+      downAt = null;
+      samples = [];
+      end();
+    };
+
     const onDown = (e: PointerEvent) => {
       if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 2) return;
+      // A "primary" pointer only starts when no other finger/button of that kind is down,
+      // so anything we still remember is stale: start fresh.
+      if (e.isPrimary) resetPointers();
       const p = local(e);
       pointers.set(e.pointerId, p);
       if (momentum) {
@@ -163,6 +181,8 @@ export function useMapGestures(target: React.RefObject<HTMLElement | null>, hand
 
     const onMove = (e: PointerEvent) => {
       if (!pointers.has(e.pointerId)) return;
+      // The mouse button was released somewhere we didn't hear about.
+      if (e.pointerType === 'mouse' && e.buttons === 0) return onUp(e);
       const p = local(e);
       pointers.set(e.pointerId, p);
 
@@ -259,7 +279,20 @@ export function useMapGestures(target: React.RefObject<HTMLElement | null>, hand
     el.addEventListener('gesturestart', stopGesture);
     el.addEventListener('gesturechange', stopGesture);
     el.addEventListener('contextmenu', stopMenu);
+    // The browser took the pointer away (e.g. to scroll or show a pop-up) without an "up".
+    const onLostCapture = (e: PointerEvent) => {
+      if (pointers.has(e.pointerId)) onUp(new PointerEvent('pointercancel', e));
+    };
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden') resetPointers();
+    };
+    el.addEventListener('lostpointercapture', onLostCapture);
+    window.addEventListener('blur', resetPointers);
+    document.addEventListener('visibilitychange', onHidden);
     return () => {
+      el.removeEventListener('lostpointercapture', onLostCapture);
+      window.removeEventListener('blur', resetPointers);
+      document.removeEventListener('visibilitychange', onHidden);
       if (momentum) cancelAnimationFrame(momentum);
       window.clearTimeout(wheelTimer);
       el.removeEventListener('pointerdown', onDown);

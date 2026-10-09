@@ -78,6 +78,9 @@ export function FlatEarth({ creatives, me, selectedId, onSelect, onViewChange, o
     const d = Math.hypot(mid[0] - C, mid[1] - C);
     const lim = RADIUS + PAD;
     if (d > lim) v = viewAt([C + ((mid[0] - C) * lim) / d, C + ((mid[1] - C) * lim) / d], [w / 2, h / 2], v.k, v.a);
+    // Never accept a broken view (e.g. maths done before the map knew its size): one NaN
+    // would stick, and every later drag would just add to it, freezing the map.
+    if (![v.k, v.o[0], v.o[1], v.a].every(Number.isFinite) || v.k <= 0) return;
     viewRef.current = v;
     setViewState(v);
   }, []);
@@ -106,6 +109,13 @@ export function FlatEarth({ creatives, me, selectedId, onSelect, onViewChange, o
   // First size: open where we were asked to (or on the whole disc). Later resizes keep the
   // same spot in the middle.
   const lastSize = useRef<{ w: number; h: number } | null>(null);
+  // Requests that arrive before the map has measured itself (location often comes back
+  // instantly once permission is granted) wait here and run as soon as it has.
+  const pending = useRef<(() => void) | null>(null);
+  const whenReady = (fn: () => void) => {
+    if (lastSize.current) fn();
+    else pending.current = fn;
+  };
   useEffect(() => {
     if (!size.w || !size.h) return;
     const prev = lastSize.current;
@@ -114,6 +124,9 @@ export function FlatEarth({ creatives, me, selectedId, onSelect, onViewChange, o
       const start = startView.current;
       startView.current = undefined;
       setView(() => (start && start.zoom > 1.5 ? viewAt(project(start.center), centre(), fitK * start.zoom, 0) : fitView()));
+      const queued = pending.current;
+      pending.current = null;
+      queued?.();
     } else setView((v) => ({ ...v, o: [v.o[0] + (size.w - prev.w) / 2, v.o[1] + (size.h - prev.h) / 2] }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [size.w, size.h]);
@@ -146,7 +159,7 @@ export function FlatEarth({ creatives, me, selectedId, onSelect, onViewChange, o
   };
 
   useImperativeHandle(ref, () => ({
-    flyTo: (coords, zoom = 140) => flyToWorld(project(coords), limits.current.fitK * zoom, 1400),
+    flyTo: (coords, zoom = 140) => whenReady(() => flyToWorld(project(coords), limits.current.fitK * zoom, 1400)),
     zoomBy: (factor) => {
       const v0 = viewRef.current;
       animate(350, (e) => zoomAbout(v0, factor ** e, centre()));

@@ -40,6 +40,12 @@
           "image": "./assets/splash-icon.png",
           "imageWidth": 220
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Music Match uses your location to show creatives near you."
+        }
       ]
     ]
   }

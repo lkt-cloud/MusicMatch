@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import * as Location from 'expo-location';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
 import type { ShouldStartLoadRequest } from 'react-native-webview/lib/WebViewTypes';
@@ -30,6 +31,26 @@ export default function App() {
       </SafeAreaView>
     </SafeAreaProvider>
   );
+}
+
+/**
+ * The site asks for the location through us (src/location.ts) so the phone's own permission is
+ * used: asked once, remembered, instead of the web view prompting on every launch.
+ * `prompt` is false when the map just opened and we've asked before: then we only answer if
+ * permission is already granted.
+ */
+async function nativeLocation(prompt: boolean): Promise<{ coords?: [number, number]; error?: 'denied' | 'unavailable' }> {
+  try {
+    let perm = await Location.getForegroundPermissionsAsync();
+    if (!perm.granted && prompt && perm.canAskAgain) perm = await Location.requestForegroundPermissionsAsync();
+    if (!perm.granted) return { error: 'denied' };
+    const pos =
+      (await Location.getLastKnownPositionAsync({ maxAge: 5 * 60_000 })) ??
+      (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }));
+    return { coords: [pos.coords.longitude, pos.coords.latitude] };
+  } catch {
+    return { error: 'unavailable' };
+  }
 }
 
 function Site({ onLook }: { onLook: (look: Look) => void }) {
@@ -86,9 +107,16 @@ function Site({ onLook }: { onLook: (look: Look) => void }) {
         onNavigationStateChange={onNavigation}
         onMessage={(e) => {
           try {
-            const msg = JSON.parse(e.nativeEvent.data) as { type?: string } & Partial<Look>;
+            const msg = JSON.parse(e.nativeEvent.data) as { type?: string; id?: string; prompt?: boolean } & Partial<Look>;
             if (msg.type === 'theme' && (msg.theme === 'dark' || msg.theme === 'light') && msg.background)
               onLook({ theme: msg.theme, background: msg.background });
+            if (msg.type === 'location' && typeof msg.id === 'string') {
+              const id = msg.id;
+              nativeLocation(msg.prompt !== false).then((result) => {
+                const detail = JSON.stringify({ id, ...result });
+                web.current?.injectJavaScript(`window.dispatchEvent(new CustomEvent('mm-location', { detail: ${detail} })); true;`);
+              });
+            }
           } catch {
             // not one of ours
           }

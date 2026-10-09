@@ -6,6 +6,7 @@ import { PLATFORMS, normalizeSocialUrl, platformInfo } from '../data/socials';
 import type { Creative, Role, SocialPlatform } from '../data/types';
 import { useStore } from '../store';
 import { SignInPrompt } from '../components/SignInPrompt';
+import { getDeviceLocation } from '../location';
 import { formatDistance, formatRadius, milesBetween, reaches } from '../map/shared';
 import { Avatar } from '../components/Avatar';
 import { RoleLine } from '../components/RoleBadge';
@@ -474,17 +475,13 @@ export function MapSpot() {
     const city = (await loadCities(me.country)).find((c) => c.name === me.city);
     updateMe({ exactLocation: false, ...(city && { coords: city.coords }) });
   };
-  const exactSpot = () => {
-    if (!navigator.geolocation) return setStatus('error');
+  const exactSpot = async () => {
     setStatus('locating');
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        updateMe({ exactLocation: true, coords: [pos.coords.longitude, pos.coords.latitude] });
-        setStatus('idle');
-      },
-      (err) => setStatus(err.code === err.PERMISSION_DENIED ? 'denied' : 'error'),
-      { enableHighAccuracy: true, timeout: 10_000 },
-    );
+    const r = await getDeviceLocation('user');
+    if ('coords' in r) {
+      updateMe({ exactLocation: true, coords: r.coords });
+      setStatus('idle');
+    } else setStatus(r.error === 'denied' ? 'denied' : 'error');
   };
 
   return (

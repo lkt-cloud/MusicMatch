@@ -15,6 +15,7 @@ import { CreativeRow } from '../components/CreativeRow';
 import { splitPromoted, usePromotionFlags } from '../backend/promotions';
 import { Compass } from '../components/Compass';
 import { getSettings } from '../settings';
+import { getDeviceLocation } from '../location';
 import { Icon } from '../components/Icon';
 import { SocialLinks } from '../components/SocialLinks';
 import { GenreChips } from '../components/Genres';
@@ -48,23 +49,18 @@ export function MapPage() {
   );
   const [here, setHere] = useState<[number, number] | null>(null);
 
-  // Ask for location once when the map opens. If it's refused or unavailable (e.g. not on
-  // https), the map simply stays on the location set in your profile.
+  // Find you when the map opens. The prompt only ever appears once (see src/location.ts);
+  // if it's refused or unavailable, the map stays on the location set in your profile.
   useEffect(() => {
     // Settings → "Find me when the map opens" can turn this off; the locate button still works.
-    if (focused || !navigator.geolocation || !getSettings().locateOnOpen) return;
+    if (focused || !getSettings().locateOnOpen) return;
     let live = true;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        if (!live) return;
-        const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude];
-        setHere(coords);
-        setDeviceLocation(coords);
-        earth.current?.flyTo(coords, LOCAL_ZOOM);
-      },
-      () => undefined,
-      { timeout: 10_000, maximumAge: 5 * 60_000 },
-    );
+    getDeviceLocation('auto').then((r) => {
+      if (!live || !('coords' in r)) return;
+      setHere(r.coords);
+      setDeviceLocation(r.coords);
+      earth.current?.flyTo(r.coords, LOCAL_ZOOM);
+    });
     return () => {
       live = false;
     };
@@ -121,18 +117,12 @@ export function MapPage() {
   };
 
   const locate = () => {
-    const fallback = () => (here || located) && earth.current?.flyTo(here ?? me.coords, LOCAL_ZOOM);
-    if (!navigator.geolocation) return fallback();
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude];
-        setHere(coords);
-        setDeviceLocation(coords);
-        earth.current?.flyTo(coords, LOCAL_ZOOM);
-      },
-      fallback,
-      { timeout: 5000 },
-    );
+    getDeviceLocation('user').then((r) => {
+      if (!('coords' in r)) return (here || located) && earth.current?.flyTo(here ?? me.coords, LOCAL_ZOOM);
+      setHere(r.coords);
+      setDeviceLocation(r.coords);
+      earth.current?.flyTo(r.coords, LOCAL_ZOOM);
+    });
   };
 
   const Earth = mapMode === 'globe' ? Globe : FlatEarth;

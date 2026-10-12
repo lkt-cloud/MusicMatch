@@ -370,7 +370,6 @@ function Sun({ sky, toScreen }: { sky: Sky; toScreen: Props['toScreen'] }) {
   return (
     <div className="sun-marker" style={{ transform: `translate(${sun[0]}px, ${sun[1]}px)` }} title="Sun directly overhead · it’s noon here">
       <span className="sun-core" />
-      <span className="sun-label">Noon</span>
     </div>
   );
 }

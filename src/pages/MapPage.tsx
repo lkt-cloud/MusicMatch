@@ -24,7 +24,7 @@ const nearestCity = (p: [number, number]) =>
   CITY_NAMES.reduce((best, c) => (geoDistance(cityCoords(c), p) < geoDistance(cityCoords(best), p) ? c : best));
 
 export function MapPage() {
-  const { me, mapMode, setMapMode, creatives, located, requireSignIn, setDeviceLocation } = useStore();
+  const { me, mapMode, setMapMode, creatives, located, requireSignIn, setDeviceLocation, findPerson, loadArea, searchPeople } = useStore();
   const navigate = useNavigate();
   const earth = useRef<EarthHandle>(null);
   const [northDeg, setNorthDeg] = useState(0); // flat map rotation, for the compass
@@ -34,7 +34,8 @@ export function MapPage() {
   const [searchOpen, setSearchOpen] = useState(false);
   // /?focus=<id> opens the map zoomed in on someone (used by "See on map" links).
   const [params] = useSearchParams();
-  const focused = creatives.find((c) => c.id === params.get('focus'));
+  const focusId = params.get('focus');
+  const focused = (focusId && findPerson(focusId)) || undefined;
   const [selectedId, setSelectedId] = useState<string | null>(focused?.id ?? null);
   const [view, setView] = useState<{ visible: Creative[]; center: [number, number]; zoom: number }>({
     visible: [],
@@ -55,6 +56,10 @@ export function MapPage() {
   useEffect(() => {
     if (!areaCenter && located) setAreaCenter(me.coords);
   }, [areaCenter, located, me.coords]);
+  // Profiles are loaded by area, so moving the area loads the people there.
+  useEffect(() => {
+    if (areaCenter) loadArea(areaCenter);
+  }, [areaCenter, loadArea]);
 
   // Find you when the map opens. The prompt only ever appears once (see src/location.ts);
   // if it's refused or unavailable, the map stays on the location set in your profile.
@@ -111,6 +116,12 @@ export function MapPage() {
   const place = view.zoom < 5 ? 'Everywhere' : `Around ${nearestCity(view.center)}`;
 
   const q = query.trim().toLowerCase();
+  // Search looks through everyone, not just who's loaded: matches are fetched and then listed below.
+  useEffect(() => {
+    if (q.length < 2) return;
+    const t = window.setTimeout(() => searchPeople(q).catch(console.error), 250);
+    return () => window.clearTimeout(t);
+  }, [q, searchPeople]);
   const results = q
     ? [
         ...CITY_NAMES.filter((c) => c.toLowerCase().includes(q)).map((c) => ({ kind: 'city' as const, city: c })),
@@ -188,7 +199,6 @@ export function MapPage() {
                       >
                         <span className="search-icon"><Icon name="pin" size={16} /></span>
                         <span>{r.city}</span>
-                        <span className="muted small">{creatives.filter((c) => c.city === r.city).length} creatives</span>
                       </button>
                     </li>
                   ) : (

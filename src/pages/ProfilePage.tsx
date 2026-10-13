@@ -33,7 +33,7 @@ const directionsUrl = ([lng, lat]: [number, number]) =>
 
 export function ProfilePage({ mine = false }: { mine?: boolean }) {
   const { id } = useParams();
-  const { me, meId, posts, person, creatives, signOut, signedIn, located, requireSignIn, blocked, unblockUser } = useStore();
+  const { me, meId, posts, person, findPerson, signOut, signedIn, located, requireSignIn, blocked, unblockUser } = useStore();
   const flags = usePromotionFlags();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
@@ -55,7 +55,8 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
         </section>
       </div>
     );
-  const p = mine ? me : creatives.find((c) => c.id === id);
+  const p = mine ? me : id ? findPerson(id) : null;
+  if (p === undefined) return <div className="page"><p className="empty">Loading…</p></div>;
   if (!p) return <div className="page"><p className="empty">That profile doesn’t exist.</p></div>;
 
   const theirPosts = posts.filter((x) => x.authorId === p.id);

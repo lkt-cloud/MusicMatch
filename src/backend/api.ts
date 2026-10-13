@@ -86,8 +86,63 @@ export function profilePatch(c: Partial<Creative>) {
   return row;
 }
 
-export async function fetchProfiles(): Promise<Creative[]> {
-  const { data, error } = await db().from('profiles').select('*').limit(2000);
+// Profiles are loaded a piece at a time instead of all at once: the people in a map area,
+// the people behind the posts and messages on screen, and search results.
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const isProfileId = (id: string) => UUID.test(id);
+
+/** Profiles by id. Ids that don't exist (deleted accounts) are simply missing from the result. */
+export async function fetchProfilesByIds(ids: string[]): Promise<Creative[]> {
+  const valid = [...new Set(ids)].filter(isProfileId);
+  const out: Creative[] = [];
+  // Batches, so the request URL stays a sensible length.
+  for (let i = 0; i < valid.length; i += 100) {
+    const { data, error } = await db().from('profiles').select('*').in('id', valid.slice(i, i + 100));
+    if (error) throw error;
+    out.push(...(data as ProfileRow[]).map(toCreative));
+  }
+  return out;
+}
+
+const MILES_PER_DEGREE = 69;
+
+/** Everyone on the map within roughly `miles` of a point (a lat/lng box around it). */
+export async function fetchProfilesNear([lng, lat]: [number, number], miles: number, limit = 1000): Promise<Creative[]> {
+  const dLat = miles / MILES_PER_DEGREE;
+  let q = db()
+    .from('profiles')
+    .select('*')
+    .neq('city', '')
+    .gte('lat', lat - dLat)
+    .lte('lat', lat + dLat);
+  const dLng = miles / (MILES_PER_DEGREE * Math.cos((lat * Math.PI) / 180));
+  // Near the poles or across the 180° line the box doesn't fit in one range; latitude alone is enough there.
+  if (Math.abs(lat) + dLat < 85 && lng - dLng > -180 && lng + dLng < 180) q = q.gte('lng', lng - dLng).lte('lng', lng + dLng);
+  const { data, error } = await q.limit(limit);
+  if (error) throw error;
+  return (data as ProfileRow[]).map(toCreative);
+}
+
+/** The most recently active people, for guests who haven't shared a location yet. */
+export async function fetchRecentProfiles(limit = 300): Promise<Creative[]> {
+  const { data, error } = await db().from('profiles').select('*').neq('city', '').order('updated_at', { ascending: false }).limit(limit);
+  if (error) throw error;
+  return (data as ProfileRow[]).map(toCreative);
+}
+
+/** People whose name or handle contains the search, or who have it as a genre. */
+export async function searchProfiles(query: string, limit = 20): Promise<Creative[]> {
+  // Characters that mean something in the filter syntax are dropped.
+  const term = query.replace(/[%,()*\\"{}]/g, ' ').trim();
+  if (term.length < 2) return [];
+  const genre = term.toLowerCase().replace(/\s+/g, '-');
+  const { data, error } = await db()
+    .from('profiles')
+    .select('*')
+    .neq('city', '')
+    .or(`name.ilike.%${term}%,handle.ilike.%${term}%,genres.cs.{${genre}}`)
+    .limit(limit);
   if (error) throw error;
   return (data as ProfileRow[]).map(toCreative);
 }

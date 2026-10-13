@@ -9,6 +9,7 @@ import { LIVE, supabase } from './backend/client';
 import * as api from './backend/api';
 import type { ActivePromotion, ReportReason, ReportTarget } from './backend/api';
 import { AuthPage } from './pages/AuthPage';
+import { AREA_MILES } from './map/shared';
 
 export type MapMode = 'flat' | 'globe';
 
@@ -37,7 +38,14 @@ export type Store = {
   promoted: ActivePromotion[];
   mapMode: MapMode;
   unreadCount: number;
+  /** Anyone by id. People not loaded yet show as a placeholder for a moment while they load. */
   person: (id: string) => Creative;
+  /** Like `person`, but tells you what's going on: undefined while loading, null if there's no such profile. */
+  findPerson: (id: string) => Creative | null | undefined;
+  /** Loads everyone within the map area around a point (they then appear in `creatives`). */
+  loadArea: (center: [number, number]) => void;
+  /** Searches everyone by name, handle or genre; matches are added to `creatives`. */
+  searchPeople: (query: string) => Promise<Creative[]>;
   /** Adds a post from you and resolves to its id. `featured` also pins it to your profile. */
   addPost: (kind: PostKind, text: string, attachments?: Attachment[], featured?: boolean) => Promise<string>;
   deletePost: (postId: string) => void;
@@ -164,6 +172,10 @@ const AUTO_REPLIES = [
   'Love it. Drop a link to the track?',
 ];
 
+// Everyone's already loaded in the demo.
+const noop = () => undefined;
+const noSearch = async () => [];
+
 function DemoProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<DemoState>(loadDemo);
 
@@ -213,6 +225,9 @@ function DemoProvider({ children }: { children: ReactNode }) {
     mapMode: state.mapMode,
     unreadCount: conversations.filter((c) => c.unread).length,
     person,
+    findPerson: (id) => people.get(id) ?? null,
+    loadArea: noop,
+    searchPeople: noSearch,
     async addPost(kind, text, attachments, featured = false) {
       const id = uid();
       setState((s) => ({
@@ -323,8 +338,17 @@ const DELETED: Creative = { ...ME, id: 'deleted', name: 'Deleted account', handl
 const GUEST_ID = 'guest';
 const GUEST: Creative = { ...ME, id: GUEST_ID, name: 'Guest', handle: 'guest', city: '', bio: '', genres: [], coords: [0, 90] };
 
+const LOADING: Creative = { ...DELETED, id: 'loading', name: '…', handle: '' };
+
 function LiveProvider({ userId, children }: { userId: string | null; children: ReactNode }) {
-  const [profiles, setProfiles] = useState<Creative[] | null>(null);
+  // Everyone loaded so far, by id. Profiles come in a piece at a time (see loadArea, requestProfiles).
+  const [profiles, setProfiles] = useState<Map<string, Creative> | null>(null);
+  const [, rerender] = useState(0);
+  const requested = useRef(new Set<string>()); // ids already asked for
+  const missing = useRef(new Set<string>()); // ids that turned out not to exist (deleted accounts)
+  const wanted = useRef(new Set<string>()); // ids waiting for the next batch
+  const batchTimer = useRef<number | undefined>(undefined);
+  const loadedAreas = useRef(new Set<string>());
   const [posts, setPosts] = useState<Post[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [promoted, setPromoted] = useState<ActivePromotion[]>([]);
@@ -341,30 +365,124 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
     setError(e instanceof Error ? e.message : 'Something went wrong. Try again.');
   }, []);
 
+  // Adds profiles to what's loaded. Your own profile isn't overwritten, so edits still being saved aren't lost.
+  const mergeProfiles = useCallback(
+    (list: Creative[]) => {
+      if (!list.length) return;
+      setProfiles((m) => {
+        const next = new Map(m ?? []);
+        for (const p of list) if (!(p.id === userId && next.has(p.id))) next.set(p.id, p);
+        return next;
+      });
+    },
+    [userId],
+  );
+
+  // Asks for profiles we don't have yet, gathered into one request.
+  const requestProfiles = useCallback(
+    (ids: string[]) => {
+      for (const id of ids) {
+        if (requested.current.has(id)) continue;
+        if (api.isProfileId(id)) wanted.current.add(id);
+        else missing.current.add(id);
+      }
+      if (!wanted.current.size || batchTimer.current !== undefined) return;
+      batchTimer.current = window.setTimeout(() => {
+        batchTimer.current = undefined;
+        const batch = [...wanted.current];
+        wanted.current.clear();
+        batch.forEach((id) => requested.current.add(id));
+        api.fetchProfilesByIds(batch).then(
+          (found) => {
+            const got = new Set(found.map((p) => p.id));
+            batch.forEach((id) => !got.has(id) && missing.current.add(id));
+            mergeProfiles(found);
+            if (found.length < batch.length) rerender((n) => n + 1);
+          },
+          (e) => {
+            batch.forEach((id) => requested.current.delete(id));
+            console.error(e);
+          },
+        );
+      }, 0);
+    },
+    [mergeProfiles],
+  );
+
+  const loadArea = useCallback(
+    (center: [number, number]) => {
+      const key = `${center[0].toFixed(1)},${center[1].toFixed(1)}`;
+      if (loadedAreas.current.has(key)) return;
+      loadedAreas.current.add(key);
+      api.fetchProfilesNear(center, AREA_MILES).then(mergeProfiles, (e) => {
+        loadedAreas.current.delete(key);
+        fail(e);
+      });
+    },
+    [mergeProfiles, fail],
+  );
+
+  const searchPeople = useCallback(
+    async (query: string) => {
+      const found = await api.searchProfiles(query);
+      mergeProfiles(found);
+      return withoutBlocked.creatives(found.filter((p) => p.id !== userId), blocked);
+    },
+    [mergeProfiles, userId, blocked],
+  );
+
   const refreshPosts = useCallback(() => api.fetchPosts().then(setPosts).catch(fail), [fail]);
   const refreshPromotions = useCallback(() => api.fetchActivePromotions().then(setPromoted).catch(fail), [fail]);
 
   // Load everything, and again when someone signs in or out. (What's on screen stays put
   // while it reloads, so a half-written post survives signing in.)
+  // Your own profile comes first, then everyone around you (guests without a location get the most
+  // recently active people instead). Anyone else is loaded when they're needed.
   useEffect(() => {
     if (userId) setSignInWhy(null);
-    Promise.all([
-      api.fetchProfiles(),
-      api.fetchPosts(),
-      userId ? api.fetchMessages(userId) : [],
-      api.fetchActivePromotions(),
-      // Not worth stopping the app over if the list can't be loaded.
-      userId ? api.fetchBlocks().catch((e) => (console.error(e), [] as string[])) : [],
-    ])
-      .then(([p, ps, convos, promos, blocks]) => {
-        setProfiles(p);
-        setPosts(ps);
-        setConversations(convos);
-        setPromoted(promos);
-        setBlocked(blocks);
-      })
-      .catch(fail);
+    let current = true;
+    (async () => {
+      const mine = userId ? await api.fetchProfilesByIds([userId]) : [];
+      const home = mine[0]?.coords;
+      const [around, ps, convos, promos, blocks] = await Promise.all([
+        home ? api.fetchProfilesNear(home, AREA_MILES) : api.fetchRecentProfiles(),
+        api.fetchPosts(),
+        userId ? api.fetchMessages(userId) : [],
+        api.fetchActivePromotions(),
+        // Not worth stopping the app over if the list can't be loaded.
+        userId ? api.fetchBlocks().catch((e) => (console.error(e), [] as string[])) : [],
+      ]);
+      if (!current) return;
+      requested.current.clear();
+      missing.current.clear();
+      loadedAreas.current.clear();
+      if (home) loadedAreas.current.add(`${home[0].toFixed(1)},${home[1].toFixed(1)}`);
+      setProfiles(new Map([...around, ...mine].map((p) => [p.id, p])));
+      setPosts(ps);
+      setConversations(convos);
+      setPromoted(promos);
+      setBlocked(blocks);
+    })().catch(fail);
+    return () => {
+      current = false;
+    };
   }, [userId, fail]);
+
+  // Load the people behind whatever's on screen: post authors, commenters, conversations, promotions, blocks.
+  useEffect(() => {
+    if (!profiles) return;
+    const ids = new Set<string>();
+    for (const p of posts) {
+      ids.add(p.authorId);
+      p.comments.forEach((c) => ids.add(c.authorId));
+    }
+    conversations.forEach((c) => ids.add(c.withId));
+    promoted.forEach((p) => ids.add(p.userId));
+    blocked.forEach((b) => ids.add(b));
+    requestProfiles([...ids].filter((id) => !profiles.has(id)));
+  }, [profiles, posts, conversations, promoted, blocked, requestProfiles]);
+
+  useEffect(() => () => window.clearTimeout(batchTimer.current), []);
 
   // Live updates: new messages straight away; posts/comments/likes trigger a refresh.
   useEffect(() => {
@@ -401,10 +519,9 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
 
   useEffect(() => () => window.clearTimeout(saveTimer.current), []);
 
-  const people = useMemo(() => new Map((profiles ?? []).map((p) => [p.id, p])), [profiles]);
   // Only people who've set a city show up on the map and in lists. (Memoised: the map re-runs work when this changes.)
   const creatives = useMemo(
-    () => withoutBlocked.creatives((profiles ?? []).filter((p) => p.id !== userId && p.city), blocked),
+    () => withoutBlocked.creatives([...(profiles?.values() ?? [])].filter((p) => p.id !== userId && p.city), blocked),
     [profiles, userId, blocked],
   );
   const visiblePosts = useMemo(() => withoutBlocked.posts(posts, blocked), [posts, blocked]);
@@ -413,10 +530,23 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
   if (!profiles) return <Splash text={error ? `Couldn’t load: ${error}` : 'Loading…'} />;
   // Guests (and, for a moment, someone who's just signed up) get a placeholder profile.
   const guest = { ...GUEST, coords: deviceCoords ?? GUEST.coords };
-  const me = (userId && people.get(userId)) || guest;
+  const me = (userId && profiles.get(userId)) || guest;
   const meId = userId ?? GUEST_ID;
 
-  const setMe = (patch: Partial<Creative>) => setProfiles((ps) => ps!.map((p) => (p.id === userId ? { ...p, ...patch } : p)));
+  const setMe = (patch: Partial<Creative>) =>
+    setProfiles((m) => {
+      const mine = userId && m?.get(userId);
+      if (!mine) return m;
+      return new Map(m).set(userId, { ...mine, ...patch });
+    });
+
+  const findPerson = (id: string): Creative | null | undefined => {
+    const p = profiles.get(id);
+    if (p) return p;
+    if (missing.current.has(id)) return null;
+    requestProfiles([id]);
+    return undefined;
+  };
 
   const requireSignIn = (why?: string) => {
     if (userId) return true;
@@ -429,7 +559,10 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
     signedIn: !!userId,
     located: !!userId || !!deviceCoords,
     requireSignIn,
-    setDeviceLocation: setDeviceCoords,
+    setDeviceLocation(coords) {
+      setDeviceCoords(coords);
+      loadArea(coords);
+    },
     meId,
     me,
     creatives,
@@ -438,7 +571,13 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
     promoted,
     mapMode,
     unreadCount: visibleConversations.filter((c) => c.unread).length,
-    person: (id) => people.get(id) ?? DELETED,
+    person: (id) => {
+      const p = findPerson(id);
+      return p ?? (p === null ? DELETED : { ...LOADING, id });
+    },
+    findPerson,
+    loadArea,
+    searchPeople,
     async addPost(kind, text, attachments, featured = false) {
       if (!requireSignIn('Sign in to post in Community.') || !userId) throw new Error('Sign in to post.');
       const post: Post = {
@@ -528,6 +667,7 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
       if (!requireSignIn('Sign in to set up your profile.') || !userId) return;
       // Typing in the profile form saves after a short pause, not on every keystroke.
       setMe(patch);
+      if (patch.coords) loadArea(patch.coords);
       pendingPatch.current = { ...pendingPatch.current, ...patch };
       window.clearTimeout(saveTimer.current);
       saveTimer.current = window.setTimeout(() => {

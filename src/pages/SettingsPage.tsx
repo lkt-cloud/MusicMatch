@@ -6,12 +6,13 @@ import { keepSignedIn, setKeepSignedIn } from '../backend/client';
 import { changeEmail, changePassword, currentEmail, deleteAccount } from '../backend/api';
 import { hasRole } from '../data/roles';
 import { Icon, type IconName } from '../components/Icon';
+import { Avatar } from '../components/Avatar';
 import { MapSpot } from './ProfilePage';
 
 const VERSION = '1.0';
 
 export function SettingsPage() {
-  const { live, signedIn, requireSignIn, me, mapMode, setMapMode, signOut } = useStore();
+  const { live, signedIn, requireSignIn, me, mapMode, setMapMode, signOut, blocked, unblockUser, person } = useStore();
   const settings = useSettings();
   const account = live && signedIn;
 
@@ -44,8 +45,8 @@ export function SettingsPage() {
             value={mapMode}
             onChange={setMapMode}
             options={[
-              ['flat', 'Flat'],
               ['globe', 'Globe'],
+              ['flat', 'Flat'],
             ]}
           />
         </Row>
@@ -103,9 +104,39 @@ export function SettingsPage() {
         </Row>
       </Section>
 
+      {account && (
+        <Section icon="block" title="Blocked accounts">
+          {blocked.length === 0 ? (
+            <p className="settings-note">You haven’t blocked anyone. To block someone, tap the ⋯ on their post, profile or messages.</p>
+          ) : (
+            <div className="blocked-list">
+              {blocked.map((id) => (
+                <div key={id} className="blocked-row">
+                  <Avatar person={person(id)} size={36} />
+                  <span className="grow strong">{person(id).name}</span>
+                  <button className="btn" onClick={() => unblockUser(id)}>
+                    Unblock
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+      )}
+
       <Section icon="doc" title="About">
         <Row label="Terms of Service">
           <Link className="btn" to="/terms">
+            Read
+          </Link>
+        </Row>
+        <Row label="Privacy Policy">
+          <Link className="btn" to="/privacy">
+            Read
+          </Link>
+        </Row>
+        <Row label="特定商取引法に基づく表記" note="Legal notice for sellers (Japan).">
+          <Link className="btn" to="/legal">
             Read
           </Link>
         </Row>

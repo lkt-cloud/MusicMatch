@@ -230,6 +230,46 @@ export async function markConversationRead(other: string) {
   if (error) throw error;
 }
 
+// ------------------------------------------------------------------ report & block
+
+export type ReportTarget = 'post' | 'comment' | 'profile' | 'message';
+export type ReportReason = 'spam' | 'harassment' | 'sexual' | 'violence' | 'impersonation' | 'copyright' | 'other';
+
+export async function fetchBlocks(): Promise<string[]> {
+  const { data, error } = await db().from('blocks').select('blocked_id');
+  if (error) throw error;
+  return data.map((r) => r.blocked_id as string);
+}
+
+export async function addBlock(blockerId: string, blockedId: string) {
+  const { error } = await db().from('blocks').upsert({ blocker_id: blockerId, blocked_id: blockedId }, { ignoreDuplicates: true });
+  if (error) throw error;
+}
+
+export async function removeBlock(blockerId: string, blockedId: string) {
+  const { error } = await db().from('blocks').delete().eq('blocker_id', blockerId).eq('blocked_id', blockedId);
+  if (error) throw error;
+}
+
+export async function insertReport(report: {
+  reporterId: string;
+  reportedUserId: string;
+  target: ReportTarget;
+  targetId: string;
+  reason: ReportReason;
+  details: string;
+}) {
+  const { error } = await db().from('reports').insert({
+    reporter_id: report.reporterId,
+    reported_user_id: report.reportedUserId,
+    target_type: report.target,
+    target_id: report.targetId,
+    reason: report.reason,
+    details: report.details,
+  });
+  if (error) throw error;
+}
+
 // ------------------------------------------------------------------ promotions
 
 export type PromotionType = 'boost_post' | 'featured_profile' | 'studio_listing';

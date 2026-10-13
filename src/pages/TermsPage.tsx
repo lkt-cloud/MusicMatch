@@ -1,11 +1,12 @@
 import { Link } from 'react-router-dom';
+import { LEGAL_UPDATED, OPERATOR } from '../data/operator';
 
 // Plain-language Terms of Service. Have a lawyer (ideally one familiar with Japanese consumer
 // law) review this before relying on it.
 // Fill these in before launch; the contact section stays hidden until CONTACT is set.
-const OPERATOR = 'the operator of Music Match';
-const CONTACT = '';
-const UPDATED = 'October 8, 2026';
+const OPERATOR_NAME = OPERATOR.name || 'the operator of Music Match';
+const CONTACT = OPERATOR.email;
+const UPDATED = LEGAL_UPDATED;
 
 export function TermsPage() {
   return (
@@ -16,7 +17,7 @@ export function TermsPage() {
       </header>
 
       <p className="legal-lead">
-        These Terms are an agreement between you and {OPERATOR} (“Music Match”, “we”, “us”). By creating an account, browsing
+        These Terms are an agreement between you and {OPERATOR_NAME} (“Music Match”, “we”, “us”). By creating an account, browsing
         or otherwise using Music Match (the website and the apps), you agree to them. If you don’t agree, please don’t use
         Music Match.
       </p>
@@ -94,6 +95,11 @@ export function TermsPage() {
           <li>Use Music Match to sell illegal goods or services.</li>
         </ul>
         <p>We may remove content, limit features, suspend or close accounts that break these rules, with or without notice.</p>
+        <p>
+          <b>Reporting and blocking.</b> Tap the ⋯ on any post, comment, profile or message to report it or to block the person.
+          We look at reports and act on anything that breaks these rules. Blocked people can’t message you, and you won’t see
+          their posts, comments or profile. You can unblock people in Settings.
+        </p>
       </Section>
 
       <Section n={6} id="safety" title="Meeting and working with people">

@@ -124,6 +124,10 @@ export function AuthPage({ reason, onClose }: { reason?: string; onClose?: () =>
             By creating an account you agree to the{' '}
             <a href="/terms" target="_blank" rel="noopener">
               Terms of Service
+            </a>{' '}
+            and{' '}
+            <a href="/privacy" target="_blank" rel="noopener">
+              Privacy Policy
             </a>
             .
           </p>

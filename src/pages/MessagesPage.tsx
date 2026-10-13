@@ -10,6 +10,7 @@ import { AttachmentView } from '../components/AttachmentView';
 import { Icon } from '../components/Icon';
 import { RoleLine } from '../components/RoleBadge';
 import { timeAgo } from '../components/time';
+import { ReportModal, SafetyMenu } from '../components/Safety';
 
 const KIND_LABEL = { image: 'Photo', video: 'Video', audio: 'Audio', file: 'File' } as const;
 
@@ -88,6 +89,7 @@ function Thread({ withId }: { withId: string }) {
   const [dragging, setDragging] = useState(false);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [reporting, setReporting] = useState<string | null>(null);
   // On touch screens there's no hover, so tapping a message reveals its delete button.
   const [picked, setPicked] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -152,6 +154,9 @@ function Thread({ withId }: { withId: string }) {
             </span>
           </span>
         </Link>
+        <span className="thread-safety">
+          <SafetyMenu target={{ userId: who.id, name: who.name, type: 'profile', id: who.id }} onBlocked={() => navigate('/messages')} />
+        </span>
         {convo && (
           <div className="thread-menu">
             <button className="icon-btn ghost" onClick={() => setMenuOpen((o) => !o)} aria-label="Conversation options" aria-expanded={menuOpen}>
@@ -218,6 +223,11 @@ function Thread({ withId }: { withId: string }) {
                   )}
                   {m.text && <div className={`bubble${mine ? ' mine' : ''}`}>{m.text}</div>}
                 </div>
+                {!mine && (
+                  <button className="msg-delete" onClick={() => setReporting(m.id)} aria-label="Report message" title="Report message">
+                    <Icon name="flag" size={15} />
+                  </button>
+                )}
                 {confirming === m.id ? (
                   <span className="msg-confirm">
                     <button className="link-danger" onClick={() => { deleteMessage(withId, m.id); setConfirming(null); }}>
@@ -236,6 +246,9 @@ function Thread({ withId }: { withId: string }) {
         })}
         <div ref={endRef} />
       </div>
+      {reporting && (
+        <ReportModal target={{ userId: who.id, name: who.name, type: 'message', id: reporting }} onClose={() => setReporting(null)} />
+      )}
 
       <PendingTray picker={picker} />
 

@@ -8,3 +8,6 @@ dist
 supabase/.temp
 # Personal Claude Code settings
 .claude/settings.local.json
+
+# Local Expo Go QR code
+expo-qr.png

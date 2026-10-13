@@ -7,7 +7,7 @@ import { deleteFile } from './data/attachments';
 import { toGenreIds } from './data/genres';
 import { LIVE, supabase } from './backend/client';
 import * as api from './backend/api';
-import type { ActivePromotion } from './backend/api';
+import type { ActivePromotion, ReportReason, ReportTarget } from './backend/api';
 import { AuthPage } from './pages/AuthPage';
 
 export type MapMode = 'flat' | 'globe';
@@ -50,6 +50,12 @@ export type Store = {
   updateMe: (patch: Partial<Creative>) => void;
   setMapMode: (mode: MapMode) => void;
   refreshPromotions: () => void;
+  /** People you've blocked. Their posts, comments, profile and messages are hidden from you. */
+  blocked: string[];
+  blockUser: (userId: string) => void;
+  unblockUser: (userId: string) => void;
+  /** Tells us about a post, comment, profile or message that breaks the rules. */
+  report: (r: { userId: string; target: ReportTarget; targetId: string; reason: ReportReason; details: string }) => Promise<void>;
   signOut?: () => void;
 };
 
@@ -65,12 +71,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   return LIVE ? <LiveGate>{children}</LiveGate> : <DemoProvider>{children}</DemoProvider>;
 }
 
-const MAP_MODE_KEY = 'music-match:map-mode';
+// The globe opens first. (v2: the old key remembered the flat map as the default, so it's not reused.)
+const MAP_MODE_KEY = 'music-match:map-mode-v2';
 const readMapMode = (): MapMode => {
   try {
-    return localStorage.getItem(MAP_MODE_KEY) === 'globe' ? 'globe' : 'flat';
+    return localStorage.getItem(MAP_MODE_KEY) === 'flat' ? 'flat' : 'globe';
   } catch {
-    return 'flat';
+    return 'globe';
   }
 };
 const saveMapMode = (mode: MapMode) => {
@@ -82,6 +89,18 @@ const saveMapMode = (mode: MapMode) => {
 };
 
 const uid = () => crypto.randomUUID();
+
+// What a person sees once the people they've blocked are taken out.
+const withoutBlocked = {
+  posts: (posts: Post[], blocked: string[]) =>
+    blocked.length
+      ? posts
+          .filter((p) => !blocked.includes(p.authorId))
+          .map((p) => (p.comments.some((c) => blocked.includes(c.authorId)) ? { ...p, comments: p.comments.filter((c) => !blocked.includes(c.authorId)) } : p))
+      : posts,
+  conversations: (cs: Conversation[], blocked: string[]) => (blocked.length ? cs.filter((c) => !blocked.includes(c.withId)) : cs),
+  creatives: (cs: Creative[], blocked: string[]) => (blocked.length ? cs.filter((c) => !blocked.includes(c.id)) : cs),
+};
 
 const forgetFiles = (items: { attachments?: Attachment[] }[]) =>
   items.forEach((m) => m.attachments?.forEach((a) => deleteFile(a.id)));
@@ -100,7 +119,7 @@ const withMessage = (convos: Conversation[], withId: string, msg: Conversation['
 // Demo mode: sample people, everything saved in this browser.
 // =====================================================================================
 
-type DemoState = { me: Creative; posts: Post[]; conversations: Conversation[]; mapMode: MapMode; seedVersion?: number };
+type DemoState = { me: Creative; posts: Post[]; conversations: Conversation[]; mapMode: MapMode; blocked: string[]; seedVersion?: number };
 
 /** Bump when sample posts are added, so existing browsers pick them up. */
 const SEED_VERSION = 2;
@@ -127,13 +146,14 @@ function loadDemo(): DemoState {
         ).map(migratePost),
         seedVersion: SEED_VERSION,
         conversations: saved.conversations ?? SEED_CONVERSATIONS,
-        mapMode: saved.mapMode ?? 'flat',
+        mapMode: readMapMode(),
+        blocked: saved.blocked ?? [],
       };
     }
   } catch {
     // storage unavailable or corrupt — fall back to seed data
   }
-  return { me: ME, posts: SEED_POSTS, conversations: SEED_CONVERSATIONS, mapMode: 'flat', seedVersion: SEED_VERSION };
+  return { me: ME, posts: SEED_POSTS, conversations: SEED_CONVERSATIONS, mapMode: readMapMode(), blocked: [], seedVersion: SEED_VERSION };
 }
 
 const FILE_REPLIES = ['Just listened — this is hard 🔥', 'Got it, going through it now.', 'Ooh. Let’s build on this one.'];
@@ -174,6 +194,10 @@ function DemoProvider({ children }: { children: ReactNode }) {
       ),
     }));
 
+  const posts = useMemo(() => withoutBlocked.posts(state.posts, state.blocked), [state.posts, state.blocked]);
+  const conversations = useMemo(() => withoutBlocked.conversations(state.conversations, state.blocked), [state.conversations, state.blocked]);
+  const creatives = useMemo(() => withoutBlocked.creatives(CREATIVES, state.blocked), [state.blocked]);
+
   const store: Store = {
     live: false,
     signedIn: true,
@@ -182,12 +206,12 @@ function DemoProvider({ children }: { children: ReactNode }) {
     setDeviceLocation: () => undefined,
     meId: ME_ID,
     me: state.me,
-    creatives: CREATIVES,
-    posts: state.posts,
-    conversations: state.conversations,
+    creatives,
+    posts,
+    conversations,
     promoted: SEED_PROMOTED,
     mapMode: state.mapMode,
-    unreadCount: state.conversations.filter((c) => c.unread).length,
+    unreadCount: conversations.filter((c) => c.unread).length,
     person,
     async addPost(kind, text, attachments, featured = false) {
       const id = uid();
@@ -253,8 +277,16 @@ function DemoProvider({ children }: { children: ReactNode }) {
       );
     },
     updateMe: (patch) => setState((s) => ({ ...s, me: { ...s.me, ...patch } })),
-    setMapMode: (mapMode) => setState((s) => ({ ...s, mapMode })),
+    setMapMode: (mapMode) => {
+      saveMapMode(mapMode);
+      setState((s) => ({ ...s, mapMode }));
+    },
     refreshPromotions: () => undefined,
+    blocked: state.blocked,
+    blockUser: (userId) => setState((s) => (s.blocked.includes(userId) ? s : { ...s, blocked: [...s.blocked, userId] })),
+    unblockUser: (userId) => setState((s) => ({ ...s, blocked: s.blocked.filter((b) => b !== userId) })),
+    // The demo has nowhere to send reports; the real app does.
+    report: async () => undefined,
   };
 
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
@@ -296,6 +328,7 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
   const [posts, setPosts] = useState<Post[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [promoted, setPromoted] = useState<ActivePromotion[]>([]);
+  const [blocked, setBlocked] = useState<string[]>([]);
   const [mapMode, setMapModeState] = useState<MapMode>(readMapMode);
   const [error, setError] = useState<string | null>(null);
   const [deviceCoords, setDeviceCoords] = useState<[number, number] | null>(null);
@@ -315,12 +348,20 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
   // while it reloads, so a half-written post survives signing in.)
   useEffect(() => {
     if (userId) setSignInWhy(null);
-    Promise.all([api.fetchProfiles(), api.fetchPosts(), userId ? api.fetchMessages(userId) : [], api.fetchActivePromotions()])
-      .then(([p, ps, convos, promos]) => {
+    Promise.all([
+      api.fetchProfiles(),
+      api.fetchPosts(),
+      userId ? api.fetchMessages(userId) : [],
+      api.fetchActivePromotions(),
+      // Not worth stopping the app over if the list can't be loaded.
+      userId ? api.fetchBlocks().catch((e) => (console.error(e), [] as string[])) : [],
+    ])
+      .then(([p, ps, convos, promos, blocks]) => {
         setProfiles(p);
         setPosts(ps);
         setConversations(convos);
         setPromoted(promos);
+        setBlocked(blocks);
       })
       .catch(fail);
   }, [userId, fail]);
@@ -362,7 +403,12 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
 
   const people = useMemo(() => new Map((profiles ?? []).map((p) => [p.id, p])), [profiles]);
   // Only people who've set a city show up on the map and in lists. (Memoised: the map re-runs work when this changes.)
-  const creatives = useMemo(() => (profiles ?? []).filter((p) => p.id !== userId && p.city), [profiles, userId]);
+  const creatives = useMemo(
+    () => withoutBlocked.creatives((profiles ?? []).filter((p) => p.id !== userId && p.city), blocked),
+    [profiles, userId, blocked],
+  );
+  const visiblePosts = useMemo(() => withoutBlocked.posts(posts, blocked), [posts, blocked]);
+  const visibleConversations = useMemo(() => withoutBlocked.conversations(conversations, blocked), [conversations, blocked]);
 
   if (!profiles) return <Splash text={error ? `Couldn’t load: ${error}` : 'Loading…'} />;
   // Guests (and, for a moment, someone who's just signed up) get a placeholder profile.
@@ -387,11 +433,11 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
     meId,
     me,
     creatives,
-    posts,
-    conversations,
+    posts: visiblePosts,
+    conversations: visibleConversations,
     promoted,
     mapMode,
-    unreadCount: conversations.filter((c) => c.unread).length,
+    unreadCount: visibleConversations.filter((c) => c.unread).length,
     person: (id) => people.get(id) ?? DELETED,
     async addPost(kind, text, attachments, featured = false) {
       if (!requireSignIn('Sign in to post in Community.') || !userId) throw new Error('Sign in to post.');
@@ -495,6 +541,27 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
       saveMapMode(mode);
     },
     refreshPromotions,
+    blocked,
+    blockUser(other) {
+      if (!requireSignIn('Sign in to block people.') || !userId || other === userId || blocked.includes(other)) return;
+      setBlocked((b) => [...b, other]);
+      api.addBlock(userId, other).catch((e) => {
+        setBlocked((b) => b.filter((x) => x !== other));
+        fail(e);
+      });
+    },
+    unblockUser(other) {
+      if (!userId || !blocked.includes(other)) return;
+      setBlocked((b) => b.filter((x) => x !== other));
+      api.removeBlock(userId, other).catch((e) => {
+        setBlocked((b) => [...b, other]);
+        fail(e);
+      });
+    },
+    async report(r) {
+      if (!requireSignIn('Sign in to report something.') || !userId) throw new Error('Sign in to report.');
+      await api.insertReport({ reporterId: userId, reportedUserId: r.userId, target: r.target, targetId: r.targetId, reason: r.reason, details: r.details });
+    },
     signOut: userId ? () => supabase!.auth.signOut() : undefined,
   };
 

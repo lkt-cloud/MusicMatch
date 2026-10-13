@@ -17,6 +17,7 @@ import { PromoteOptions } from '../components/PromoteOptions';
 import { splitPromoted, usePromotionFlags } from '../backend/promotions';
 import { startCheckout } from '../backend/api';
 import { LAUNCH_LABEL, usePricing } from '../data/pricing';
+import { SafetyMenu } from '../components/Safety';
 
 /** "Around you" covers people within this many miles. */
 const NEARBY_MILES = 60;
@@ -330,6 +331,7 @@ function PostCard({ post, promoted = false }: { post: Post; promoted?: boolean }
           </span>
         </div>
         <TopicPill kind={post.kind} />
+        {!mine && <SafetyMenu target={{ userId: author.id, name: author.name, type: 'post', id: post.id }} label="Report or block" />}
       </header>
 
       {post.text && <p className="post-text">{post.text}</p>}
@@ -400,6 +402,7 @@ function PostCard({ post, promoted = false }: { post: Post; promoted?: boolean }
               <div key={c.id} className="comment">
                 <Avatar person={who} size={28} />
                 <div className="comment-bubble">
+                  {who.id !== meId && <SafetyMenu target={{ userId: who.id, name: who.name, type: 'comment', id: c.id }} label="Report or block" />}
                   <span className="strong small">{who.name}</span> <span className="muted small">{timeAgo(c.at)}</span>
                   <p>{c.text}</p>
                 </div>

@@ -10,6 +10,8 @@ import { ProfilePage } from './pages/ProfilePage';
 import { PromotionsPage } from './pages/PromotionsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { TermsPage } from './pages/TermsPage';
+import { PrivacyPage } from './pages/PrivacyPage';
+import { LegalNoticePage } from './pages/LegalNoticePage';
 import { applyAppearance } from './settings';
 import './styles.css';
 
@@ -30,6 +32,8 @@ createRoot(document.getElementById('root')!).render(
             <Route path="promotions" element={<PromotionsPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="terms" element={<TermsPage />} />
+            <Route path="privacy" element={<PrivacyPage />} />
+            <Route path="legal" element={<LegalNoticePage />} />
           </Route>
         </Routes>
       </BrowserRouter>

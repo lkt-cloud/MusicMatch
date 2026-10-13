@@ -20,6 +20,7 @@ import { PromoteModal } from '../components/PromoteModal';
 import { PromoteOptions } from '../components/PromoteOptions';
 import { usePromotionFlags } from '../backend/promotions';
 import { AttachmentView } from '../components/AttachmentView';
+import { SafetyMenu } from '../components/Safety';
 
 const REVIEWS = [
   { by: 'lilmerit', text: 'Easy to work with and fast. The final product was better than I pictured.', days: 12 },
@@ -32,7 +33,7 @@ const directionsUrl = ([lng, lat]: [number, number]) =>
 
 export function ProfilePage({ mine = false }: { mine?: boolean }) {
   const { id } = useParams();
-  const { me, meId, posts, person, creatives, signOut, signedIn, located, requireSignIn } = useStore();
+  const { me, meId, posts, person, creatives, signOut, signedIn, located, requireSignIn, blocked, unblockUser } = useStore();
   const flags = usePromotionFlags();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
@@ -42,6 +43,18 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
   if (id === meId) return <Navigate to="/me" replace />;
   if (mine && !signedIn)
     return <SignInPrompt icon="user" title="Your profile" text="Sign in to set up your profile and show up on the map." />;
+  if (!mine && id && blocked.includes(id))
+    return (
+      <div className="page">
+        <section className="card profile-blocked">
+          <h1>You’ve blocked {person(id).name}</h1>
+          <p className="muted">You can’t see their profile, posts or messages, and they can’t message you.</p>
+          <button className="btn primary" onClick={() => unblockUser(id)}>
+            Unblock
+          </button>
+        </section>
+      </div>
+    );
   const p = mine ? me : creatives.find((c) => c.id === id);
   if (!p) return <div className="page"><p className="empty">That profile doesn’t exist.</p></div>;
 
@@ -112,9 +125,12 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
                 )}
               </>
             ) : (
-              <button className="btn primary" onClick={message}>
-                <Icon name="chat" size={17} /> Message
-              </button>
+              <>
+                <button className="btn primary" onClick={message}>
+                  <Icon name="chat" size={17} /> Message
+                </button>
+                <SafetyMenu target={{ userId: p.id, name: p.name, type: 'profile', id: p.id }} onBlocked={() => navigate(-1)} />
+              </>
             )}
           </div>
         </div>

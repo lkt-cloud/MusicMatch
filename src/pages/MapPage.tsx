@@ -218,7 +218,7 @@ export function MapPage() {
         )}
 
         <div className="mode-toggle" role="radiogroup" aria-label="Map style">
-          {(['flat', 'globe'] as const).map((m) => (
+          {(['globe', 'flat'] as const).map((m) => (
             <button
               key={m}
               role="radio"

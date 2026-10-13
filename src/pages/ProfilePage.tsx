@@ -129,7 +129,7 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
                 <button className="btn primary" onClick={message}>
                   <Icon name="chat" size={17} /> Message
                 </button>
-                <SafetyMenu target={{ userId: p.id, name: p.name, type: 'profile', id: p.id }} onBlocked={() => navigate(-1)} />
+                <SafetyMenu target={{ userId: p.id, name: p.name, type: 'profile', id: p.id }} />
               </>
             )}
           </div>

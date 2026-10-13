@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { geoDistance } from 'd3-geo';
 import { FlatEarth } from '../map/FlatEarth';
 import { Globe } from '../map/Globe';
-import { EARTH_RADIUS_MI, LOCAL_ZOOM, MAX_ZOOM, formatDistance, formatRadius, milesBetween, reaches, type EarthHandle, type View } from '../map/shared';
+import { AREA_MILES, EARTH_RADIUS_MI, LOCAL_ZOOM, MAX_ZOOM, formatDistance, formatRadius, milesBetween, reaches, type EarthHandle, type View } from '../map/shared';
 import { ActiveFilters, FilterPanel, NO_FILTERS, countFilters, matches, type Filters } from '../components/MapFilters';
 import { CITY_NAMES, cityCoords } from '../data/creatives';
 import { hasRole, roleInfo, rolesOf } from '../data/roles';
@@ -48,6 +48,13 @@ export function MapPage() {
     focused ? { center: focused.coords, zoom: 220 } : located ? { center: me.coords, zoom: LOCAL_ZOOM } : undefined,
   );
   const [here, setHere] = useState<[number, number] | null>(null);
+  // Only people within a wide area of here are drawn, so the map stays light and uncluttered. The area
+  // follows you: it's your home, and moves when you search a city or a person, or tap "Near me".
+  // Guests who haven't shared a location yet see everyone until they do.
+  const [areaCenter, setAreaCenter] = useState<[number, number] | null>(focused ? focused.coords : located ? me.coords : null);
+  useEffect(() => {
+    if (!areaCenter && located) setAreaCenter(me.coords);
+  }, [areaCenter, located, me.coords]);
 
   // Find you when the map opens. The prompt only ever appears once (see src/location.ts);
   // if it's refused or unavailable, the map stays on the location set in your profile.
@@ -68,7 +75,11 @@ export function MapPage() {
   }, []);
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  const filtered = useMemo(() => creatives.filter((c) => matches(c, filters, me)), [creatives, filters, me]);
+  const nearby = useMemo(
+    () => (areaCenter ? creatives.filter((c) => milesBetween(c.coords, areaCenter) <= AREA_MILES) : creatives),
+    [creatives, areaCenter],
+  );
+  const filtered = useMemo(() => nearby.filter((c) => matches(c, filters, me)), [nearby, filters, me]);
   const filterCount = countFilters(filters);
   const range = useMemo(() => (filters.miles != null ? { center: me.coords, miles: filters.miles } : null), [filters.miles, me.coords]);
 
@@ -113,6 +124,7 @@ export function MapPage() {
 
   const focus = (c: Creative) => {
     setSelectedId(c.id);
+    setAreaCenter(c.coords);
     earth.current?.flyTo(c.coords, 320);
   };
 
@@ -121,6 +133,7 @@ export function MapPage() {
       if (!('coords' in r)) return (here || located) && earth.current?.flyTo(here ?? me.coords, LOCAL_ZOOM);
       setHere(r.coords);
       setDeviceLocation(r.coords);
+      setAreaCenter(r.coords);
       earth.current?.flyTo(r.coords, LOCAL_ZOOM);
     });
   };
@@ -168,6 +181,7 @@ export function MapPage() {
                     <li key={r.city}>
                       <button
                         onClick={() => {
+                          setAreaCenter(cityCoords(r.city));
                           earth.current?.flyTo(cityCoords(r.city), 140);
                           setQuery('');
                         }}
@@ -324,7 +338,7 @@ export function MapPage() {
         <div className="panel-list">
           {featuredTop.length + listed.length === 0 && (
             <p className="empty">
-              No one here. Zoom out or loosen your filters.
+              {areaCenter ? `No one here. The map shows people within ${AREA_MILES} miles; search a city to look elsewhere.` : 'No one here. Zoom out or loosen your filters.'}
               {filterCount > 0 && (
                 <button className="btn block" onClick={() => setFilters(NO_FILTERS)}>Clear filters</button>
               )}

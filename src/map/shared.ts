@@ -13,6 +13,8 @@ import { getSettings } from '../settings';
  * (Zoom is a multiple of the whole-map view; ~1.9 / radius-in-radians fits that radius on screen.)
  */
 export const LOCAL_ZOOM = 90;
+/** The map only draws creatives within this many miles of where you live (or where you last jumped to). */
+export const AREA_MILES = 250;
 
 /** Max zoom, as a multiple of the whole-map view. */
 export const MAX_ZOOM = 1200;

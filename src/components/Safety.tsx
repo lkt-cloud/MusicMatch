@@ -88,9 +88,14 @@ export function ReportModal({ target, onClose }: { target: SafetyTarget; onClose
   const [alsoBlock, setAlsoBlock] = useState(false);
   const [state, setState] = useState<'form' | 'sending' | 'sent'>('form');
   const [error, setError] = useState<string | null>(null);
-  useEscape(onClose);
 
   const alreadyBlocked = blocked.includes(target.userId);
+  // Blocking hides the post or comment this form belongs to, so it happens when the thank-you is closed.
+  const finish = () => {
+    if (alsoBlock && !alreadyBlocked) blockUser(target.userId);
+    onClose();
+  };
+  useEscape(state === 'sent' ? finish : onClose);
 
   const send = async () => {
     if (!reason) return;
@@ -98,7 +103,6 @@ export function ReportModal({ target, onClose }: { target: SafetyTarget; onClose
     setError(null);
     try {
       await report({ userId: target.userId, target: target.type, targetId: target.id, reason, details: details.trim() });
-      if (alsoBlock && !alreadyBlocked) blockUser(target.userId);
       setState('sent');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Couldn’t send that. Try again.');
@@ -107,7 +111,7 @@ export function ReportModal({ target, onClose }: { target: SafetyTarget; onClose
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={state === 'sent' ? finish : onClose}>
       <div className="modal safety-modal" role="dialog" aria-modal="true" aria-label={`Report ${NOUN[target.type]}`} onClick={(e) => e.stopPropagation()}>
         {state === 'sent' ? (
           <>
@@ -116,10 +120,10 @@ export function ReportModal({ target, onClose }: { target: SafetyTarget; onClose
             </div>
             <p className="promote-sub">
               We’ll look at this {NOUN[target.type]} and remove it, and the account if needed, if it breaks the Terms.
-              {alsoBlock && !alreadyBlocked ? ` ${target.name} is blocked, so you won’t see their content.` : ''}
+              {alsoBlock && !alreadyBlocked ? ` ${target.name} will be blocked, so you won’t see their content.` : ''}
             </p>
             <div className="cropper-foot">
-              <button className="btn primary" onClick={onClose}>
+              <button className="btn primary" onClick={finish}>
                 Done
               </button>
             </div>

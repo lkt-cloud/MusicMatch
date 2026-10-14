@@ -8,8 +8,11 @@ export function initials(name: string) {
   return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? parts[0]?.[1] ?? '')).toUpperCase();
 }
 
-/** Profile picture (or initials tinted by role); `badge` adds the role's icon in the corner. */
-export function Avatar({ person, size = 40, badge = false }: { person: Creative; size?: number; badge?: boolean }) {
+/**
+ * Profile picture (or initials tinted by role); `badge` adds the role's icon in the corner.
+ * `online` adds a status dot in the bottom-right corner instead (green online, grey offline).
+ */
+export function Avatar({ person, size = 40, badge = false, online }: { person: Creative; size?: number; badge?: boolean; online?: boolean }) {
   const photo = useSharedFileUrl(person.avatarId);
   return (
     <span
@@ -18,7 +21,14 @@ export function Avatar({ person, size = 40, badge = false }: { person: Creative;
       aria-hidden
     >
       {photo ? <img src={photo} alt="" /> : initials(person.name)}
-      {badge && (
+      {online !== undefined && (
+        <span
+          className={`avatar-status${online ? ' is-online' : ''}`}
+          style={{ width: Math.max(10, size * 0.27), height: Math.max(10, size * 0.27) }}
+          title={online ? 'Online' : 'Offline'}
+        />
+      )}
+      {badge && online === undefined && (
         <span className="avatar-badge" style={{ width: size * 0.42, height: size * 0.42 }}>
           <RoleIcon role={person.role} size={Math.round(size * 0.25)} />
         </span>

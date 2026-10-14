@@ -1253,3 +1253,74 @@ button, .nav-link, .chip { -webkit-user-select: none; user-select: none; touch-a
 .legal-row dd .muted { display: block; margin-top: 2px; font-size: 12.5px; }
 .legal-row dd a { color: var(--accent); }
 @media (max-width: 640px) { .legal-row { grid-template-columns: 1fr; } }
+
+/* ---------- Online status ---------- */
+
+.avatar-status {
+  position: absolute; right: 0; bottom: 0; border-radius: 50%;
+  background: var(--surface-3); box-shadow: 0 0 0 2px var(--bg); border: 2px solid var(--text-3);
+}
+.avatar-status.is-online { background: var(--good); border-color: var(--good); }
+.inbox-item .avatar-status { box-shadow: 0 0 0 2px var(--surface); }
+.status-online { color: var(--good); font-weight: 600; }
+
+/* ---------- Booking times ---------- */
+
+.booking-modal { width: min(500px, 100%); }
+.booking-form { display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: var(--r-md); background: var(--bg); border: 1px solid var(--line); }
+.booking-presets { display: flex; gap: 6px; flex-wrap: wrap; }
+.booking-fields { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 8px; }
+.booking-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.booking-field input, .booking-note, .booking-repeat select {
+  width: 100%; min-width: 0; height: 40px; padding: 0 10px; border-radius: var(--r-sm); border: 1px solid var(--line);
+  background: var(--surface); color: var(--text); font: inherit; font-size: 15px; color-scheme: dark;
+}
+:root[data-theme="light"] :is(.booking-field input, .booking-note, .booking-repeat select) { color-scheme: light; }
+:is(.booking-field input, .booking-note, .booking-repeat select):focus { outline: 0; border-color: var(--accent); }
+.booking-add { display: flex; align-items: center; gap: 10px; justify-content: space-between; flex-wrap: wrap; }
+.booking-repeat { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
+.booking-repeat select { width: auto; height: 36px; font-size: 14px; }
+@media (max-width: 420px) { .booking-fields { grid-template-columns: 1fr 1fr; } .booking-field.is-day { grid-column: 1 / -1; } }
+
+.booking-list { display: flex; flex-direction: column; gap: 14px; }
+.booking-day h3 { font-size: 13px; font-weight: 700; color: var(--text-2); margin-bottom: 6px; }
+.booking-day { display: flex; flex-direction: column; gap: 6px; }
+.booking-row {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; text-align: left;
+  border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--surface);
+}
+.booking-row.is-pick { cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+@media (hover: hover) { .booking-row.is-pick:hover { border-color: var(--line-strong); } }
+.booking-row.is-on { border-color: var(--accent); background: var(--accent-soft); }
+.booking-row input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent); }
+.booking-row.is-booked .booking-time strong { color: var(--text-3); text-decoration: line-through; }
+.booking-time { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.booking-time strong { font-size: 15px; }
+.booking-time small { color: var(--text-3); font-size: 12px; }
+.booking-state { height: 28px; padding: 0 12px; }
+.booking-ask { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 700; color: var(--accent); }
+.booking-all { align-self: flex-start; }
+.booking-foot { justify-content: space-between; }
+.profile-actions .btn .count {
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--accent); color: var(--on-accent);
+  font-size: 12px; line-height: 20px; text-align: center;
+}
+
+.slots-card {
+  width: min(320px, 100%); padding: 12px 14px; border-radius: 18px; background: var(--surface-2);
+  display: flex; flex-direction: column; gap: 10px; animation: rise 0.18s ease-out;
+}
+.slots-card.mine { border: 1px solid var(--accent); }
+.slots-card-head { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); }
+.slots-card-head svg { color: var(--accent); }
+.slots-card-day { display: flex; flex-direction: column; gap: 5px; }
+.slots-card-date { font-size: 12px; font-weight: 700; color: var(--text-2); }
+.slots-card-slot {
+  display: flex; align-items: center; gap: 4px; padding: 8px 10px; border-radius: var(--r-sm);
+  background: var(--surface); font-size: 14px; font-weight: 600; text-align: left;
+}
+.slots-card-slot small { font-weight: 400; color: var(--text-3); }
+.slots-card-slot.is-past { opacity: 0.45; text-decoration: line-through; }
+.slots-card-slot.is-pick { cursor: pointer; border: 1px solid var(--line); transition: border-color 0.12s; }
+@media (hover: hover) { .slots-card-slot.is-pick:hover { border-color: var(--accent); } }
+.slots-card-book { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--accent); }

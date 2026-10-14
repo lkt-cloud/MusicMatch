@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
 import type { ReportReason, ReportTarget } from '../backend/api';
-import { Icon } from './Icon';
+import { Icon, type IconName } from './Icon';
 
 // Report and block, as App Store guideline 1.2 requires for apps where people post and message.
 // <SafetyMenu> is the "…" button; it opens the report form or the block confirmation.
@@ -35,7 +35,20 @@ function useEscape(onClose: () => void) {
   }, [onClose]);
 }
 
-export function SafetyMenu({ target, label, align = 'right', onBlocked }: { target: SafetyTarget; label?: string; align?: 'left' | 'right'; onBlocked?: () => void }) {
+export function SafetyMenu({
+  target,
+  label,
+  align = 'right',
+  onBlocked,
+  extra,
+}: {
+  target: SafetyTarget;
+  label?: string;
+  align?: 'left' | 'right';
+  onBlocked?: () => void;
+  /** More items for the same menu, shown above Report and Block, e.g. "Delete conversation". */
+  extra?: { label: string; icon: IconName; danger?: boolean; onClick: () => void }[];
+}) {
   const { requireSignIn } = useStore();
   const [menu, setMenu] = useState(false);
   const [modal, setModal] = useState<'report' | 'block' | null>(null);
@@ -67,6 +80,19 @@ export function SafetyMenu({ target, label, align = 'right', onBlocked }: { targ
       </button>
       {menu && (
         <div className={`menu${align === 'left' ? ' is-left' : ''}`} role="menu">
+          {extra?.map((x) => (
+            <button
+              key={x.label}
+              role="menuitem"
+              className={x.danger ? 'menu-danger' : undefined}
+              onClick={() => {
+                setMenu(false);
+                x.onClick();
+              }}
+            >
+              <Icon name={x.icon} size={16} /> {x.label}
+            </button>
+          ))}
           <button role="menuitem" onClick={() => choose('report')}>
             <Icon name="flag" size={16} /> Report {NOUN[target.type]}
           </button>

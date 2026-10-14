@@ -67,6 +67,9 @@ export function SettingsPage() {
 
       {signedIn && (
         <Section icon="pin" title="Privacy">
+          <Row label="Show when I’m online" note="Others see a green dot on your picture in Messages while you have Music Match open.">
+            <Switch checked={settings.showOnline} onChange={(v) => setSetting('showOnline', v)} label="Show when I’m online" />
+          </Row>
           {hasRole(me, 'studio') ? (
             <Row label="Your pin on the map" note="Studios show at their address. Change it in Edit profile.">
               <Link className="btn" to="/me">

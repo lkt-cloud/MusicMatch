@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Session } from '@supabase/supabase-js';
 import { CREATIVES, ME, ME_ID } from './data/creatives';
 import { SEED_CONVERSATIONS, SEED_POSTS, SEED_PROMOTED } from './data/seed';
-import type { Attachment, Conversation, Creative, Post, PostKind } from './data/types';
+import type { Attachment, Conversation, Creative, Post, PostKind, SharedSlot, Slot } from './data/types';
 import { deleteFile } from './data/attachments';
 import { toGenreIds } from './data/genres';
 import { LIVE, supabase } from './backend/client';
@@ -10,6 +10,7 @@ import * as api from './backend/api';
 import type { ActivePromotion, ReportReason, ReportTarget } from './backend/api';
 import { AuthPage } from './pages/AuthPage';
 import { AREA_MILES } from './map/shared';
+import { useSettings } from './settings';
 
 export type MapMode = 'flat' | 'globe';
 
@@ -51,7 +52,16 @@ export type Store = {
   deletePost: (postId: string) => void;
   toggleLike: (postId: string) => void;
   addComment: (postId: string, text: string) => void;
-  sendMessage: (withId: string, text: string, attachments?: Attachment[]) => void;
+  /** Sends a message; `slots` attaches some of your booking times. */
+  sendMessage: (withId: string, text: string, attachments?: Attachment[], slots?: SharedSlot[]) => void;
+  /** Whether someone has Music Match open right now (and hasn't hidden it in Settings). */
+  isOnline: (id: string) => boolean;
+  /** Someone's booking times that haven't ended, soonest first. Undefined while they load. */
+  slotsOf: (userId: string) => Slot[] | undefined;
+  /** Adds booking times to your profile. */
+  addSlots: (slots: { start: number; end: number; note: string }[]) => void;
+  setSlotBooked: (id: string, booked: boolean) => void;
+  deleteSlot: (id: string) => void;
   deleteMessage: (withId: string, messageId: string) => void;
   deleteConversation: (withId: string) => void;
   markRead: (withId: string) => void;
@@ -98,6 +108,9 @@ const saveMapMode = (mode: MapMode) => {
 
 const uid = () => crypto.randomUUID();
 
+const bySoonest = (a: Slot, b: Slot) => a.start - b.start;
+const upcoming = (slots: Slot[]) => slots.filter((s) => s.end > Date.now());
+
 // What a person sees once the people they've blocked are taken out.
 const withoutBlocked = {
   posts: (posts: Post[], blocked: string[]) =>
@@ -127,7 +140,15 @@ const withMessage = (convos: Conversation[], withId: string, msg: Conversation['
 // Demo mode: sample people, everything saved in this browser.
 // =====================================================================================
 
-type DemoState = { me: Creative; posts: Post[]; conversations: Conversation[]; mapMode: MapMode; blocked: string[]; seedVersion?: number };
+type DemoState = {
+  me: Creative;
+  posts: Post[];
+  conversations: Conversation[];
+  mapMode: MapMode;
+  blocked: string[];
+  slots: Slot[];
+  seedVersion?: number;
+};
 
 /** Bump when sample posts are added, so existing browsers pick them up. */
 const SEED_VERSION = 2;
@@ -139,6 +160,24 @@ const migrateMe = (me: Creative): Creative => ({ ...me, genres: toGenreIds(me.ge
 // Gig, Studio time and Showcase topics were folded into Self-promo.
 const migratePost = (p: Post): Post =>
   (['collab', 'promo', 'question'] as string[]).includes(p.kind) ? p : { ...p, kind: 'promo' };
+
+/** Sample booking times for a few people, starting tomorrow. */
+function seedSlots(): Slot[] {
+  const day = new Date();
+  day.setHours(0, 0, 0, 0);
+  const at = (d: number, h: number) => day.getTime() + d * 86_400_000 + h * 3_600_000;
+  return CREATIVES.filter((c) => c.role !== 'artist')
+    .slice(0, 6)
+    .flatMap((c, i) =>
+      [1, 2, 4].flatMap((d) => [
+        { id: uid(), ownerId: c.id, start: at(d + (i % 2), 11), end: at(d + (i % 2), 14), note: '', booked: false },
+        { id: uid(), ownerId: c.id, start: at(d + (i % 2), 16), end: at(d + (i % 2), 20), note: d === 4 ? 'Evening session' : '', booked: d === 2 },
+      ]),
+    );
+}
+
+// In the demo, about half the sample people are "online".
+const demoOnline = (id: string) => id === ME_ID || [...id].reduce((n, ch) => n + ch.charCodeAt(0), 0) % 2 === 0;
 
 function loadDemo(): DemoState {
   try {
@@ -156,12 +195,13 @@ function loadDemo(): DemoState {
         conversations: saved.conversations ?? SEED_CONVERSATIONS,
         mapMode: readMapMode(),
         blocked: saved.blocked ?? [],
+        slots: saved.slots ?? seedSlots(),
       };
     }
   } catch {
     // storage unavailable or corrupt — fall back to seed data
   }
-  return { me: ME, posts: SEED_POSTS, conversations: SEED_CONVERSATIONS, mapMode: readMapMode(), blocked: [], seedVersion: SEED_VERSION };
+  return { me: ME, posts: SEED_POSTS, conversations: SEED_CONVERSATIONS, mapMode: readMapMode(), blocked: [], slots: seedSlots(), seedVersion: SEED_VERSION };
 }
 
 const FILE_REPLIES = ['Just listened — this is hard 🔥', 'Got it, going through it now.', 'Ooh. Let’s build on this one.'];
@@ -195,13 +235,13 @@ function DemoProvider({ children }: { children: ReactNode }) {
 
   const person = useCallback((id: string) => people.get(id) ?? state.me, [people, state.me]);
 
-  const pushMessage = (withId: string, from: string, text: string, unread: boolean, attachments?: Attachment[]) =>
+  const pushMessage = (withId: string, from: string, text: string, unread: boolean, attachments?: Attachment[], slots?: SharedSlot[]) =>
     setState((s) => ({
       ...s,
       conversations: withMessage(
         s.conversations,
         withId,
-        { id: uid(), from, text, at: Date.now(), ...(attachments?.length ? { attachments } : {}) },
+        { id: uid(), from, text, at: Date.now(), ...(attachments?.length ? { attachments } : {}), ...(slots?.length ? { slots } : {}) },
         unread,
       ),
     }));
@@ -264,8 +304,8 @@ function DemoProvider({ children }: { children: ReactNode }) {
         ),
       }));
     },
-    sendMessage(withId, text, attachments) {
-      pushMessage(withId, ME_ID, text, false, attachments);
+    sendMessage(withId, text, attachments, slots) {
+      pushMessage(withId, ME_ID, text, false, attachments, slots);
       // Stand-in for a real person replying, so the demo feels alive.
       const pool = attachments?.length ? FILE_REPLIES : AUTO_REPLIES;
       const reply = pool[Math.floor(Math.random() * pool.length)];
@@ -302,6 +342,12 @@ function DemoProvider({ children }: { children: ReactNode }) {
     unblockUser: (userId) => setState((s) => ({ ...s, blocked: s.blocked.filter((b) => b !== userId) })),
     // The demo has nowhere to send reports; the real app does.
     report: async () => undefined,
+    isOnline: demoOnline,
+    slotsOf: (id) => upcoming(state.slots.filter((x) => x.ownerId === id)).sort(bySoonest),
+    addSlots: (list) =>
+      setState((s) => ({ ...s, slots: [...s.slots, ...list.map((x) => ({ ...x, id: uid(), ownerId: ME_ID, booked: false }))] })),
+    setSlotBooked: (id, booked) => setState((s) => ({ ...s, slots: s.slots.map((x) => (x.id === id ? { ...x, booked } : x)) })),
+    deleteSlot: (id) => setState((s) => ({ ...s, slots: s.slots.filter((x) => x.id !== id) })),
   };
 
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
@@ -349,6 +395,10 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
   const wanted = useRef(new Set<string>()); // ids waiting for the next batch
   const batchTimer = useRef<number | undefined>(undefined);
   const loadedAreas = useRef(new Set<string>());
+  const [slotsBy, setSlotsBy] = useState<Map<string, Slot[]>>(new Map());
+  const slotsRequested = useRef(new Set<string>());
+  const [online, setOnline] = useState<Set<string>>(new Set());
+  const { showOnline } = useSettings();
   const [posts, setPosts] = useState<Post[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [promoted, setPromoted] = useState<ActivePromotion[]>([]);
@@ -483,6 +533,24 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
   }, [profiles, posts, conversations, promoted, blocked, requestProfiles]);
 
   useEffect(() => () => window.clearTimeout(batchTimer.current), []);
+
+  // Who's online: everyone signed in joins one shared presence channel. If you turned
+  // "Show when I'm online" off, you still see others but don't appear yourself.
+  useEffect(() => {
+    if (!userId) {
+      setOnline(new Set());
+      return;
+    }
+    const channel = supabase!.channel('online', { config: { presence: { key: userId } } });
+    channel
+      .on('presence', { event: 'sync' }, () => setOnline(new Set(Object.keys(channel.presenceState()))))
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED' && showOnline) channel.track({ since: new Date().toISOString() });
+      });
+    return () => {
+      supabase!.removeChannel(channel);
+    };
+  }, [userId, showOnline]);
 
   // Live updates: new messages straight away; posts/comments/likes trigger a refresh.
   useEffect(() => {
@@ -639,11 +707,63 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
         refreshPosts();
       });
     },
-    sendMessage(withId, text, attachments) {
+    sendMessage(withId, text, attachments, slots) {
       if (!requireSignIn('Sign in to send messages.') || !userId) return;
-      const msg = { id: uid(), from: userId, text, at: Date.now(), ...(attachments?.length ? { attachments } : {}) };
+      const msg = {
+        id: uid(),
+        from: userId,
+        text,
+        at: Date.now(),
+        ...(attachments?.length ? { attachments } : {}),
+        ...(slots?.length ? { slots } : {}),
+      };
       setConversations((cs) => withMessage(cs, withId, msg, false));
-      api.insertMessage(msg.id, userId, withId, text, attachments).catch(fail);
+      api.insertMessage(msg.id, userId, withId, text, attachments, slots).catch(fail);
+    },
+    isOnline: (id) => online.has(id),
+    slotsOf(id) {
+      const list = slotsBy.get(id);
+      if (list) return upcoming(list);
+      if (!slotsRequested.current.has(id) && api.isProfileId(id)) {
+        slotsRequested.current.add(id);
+        api.fetchSlots(id).then(
+          (found) => setSlotsBy((m) => new Map(m).set(id, found)),
+          (e) => {
+            console.error(e);
+            setSlotsBy((m) => new Map(m).set(id, []));
+          },
+        );
+      }
+      return undefined;
+    },
+    addSlots(list) {
+      if (!requireSignIn('Sign in to set your booking times.') || !userId) return;
+      const added: Slot[] = list.map((x) => ({ ...x, id: uid(), ownerId: userId, booked: false }));
+      const ids = new Set(added.map((x) => x.id));
+      setSlotsBy((m) => new Map(m).set(userId, [...(m.get(userId) ?? []), ...added].sort(bySoonest)));
+      api.insertSlots(added).catch((e) => {
+        setSlotsBy((m) => new Map(m).set(userId, (m.get(userId) ?? []).filter((x) => !ids.has(x.id))));
+        fail(e);
+      });
+    },
+    setSlotBooked(id, booked) {
+      if (!userId) return;
+      const change = (b: boolean) =>
+        setSlotsBy((m) => new Map(m).set(userId, (m.get(userId) ?? []).map((x) => (x.id === id ? { ...x, booked: b } : x))));
+      change(booked);
+      api.setSlotBooked(id, booked).catch((e) => {
+        change(!booked);
+        fail(e);
+      });
+    },
+    deleteSlot(id) {
+      if (!userId) return;
+      const removed = slotsBy.get(userId)?.find((x) => x.id === id);
+      setSlotsBy((m) => new Map(m).set(userId, (m.get(userId) ?? []).filter((x) => x.id !== id)));
+      api.deleteSlot(id).catch((e) => {
+        if (removed) setSlotsBy((m) => new Map(m).set(userId, [...(m.get(userId) ?? []), removed].sort(bySoonest)));
+        fail(e);
+      });
     },
     deleteMessage(withId, messageId) {
       if (!userId) return;

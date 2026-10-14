@@ -14,10 +14,12 @@ export type Settings = {
   locateOnOpen: boolean;
   /** Fewer animations: no glide after flicking the map, no fly-overs. */
   reduceMotion: boolean;
+  /** Let people see the green "online" dot on your picture while you have Music Match open. */
+  showOnline: boolean;
 };
 
 const KEY = 'music-match:settings';
-const DEFAULTS: Settings = { theme: 'dark', units: 'mi', locateOnOpen: true, reduceMotion: false };
+const DEFAULTS: Settings = { theme: 'dark', units: 'mi', locateOnOpen: true, reduceMotion: false, showOnline: true };
 
 const read = (): Settings => {
   try {

@@ -21,6 +21,7 @@ import { PromoteOptions } from '../components/PromoteOptions';
 import { usePromotionFlags } from '../backend/promotions';
 import { AttachmentView } from '../components/AttachmentView';
 import { SafetyMenu } from '../components/Safety';
+import { BookingEditor, BookingTimes } from '../components/Booking';
 
 const REVIEWS = [
   { by: 'lilmerit', text: 'Easy to work with and fast. The final product was better than I pictured.', days: 12 },
@@ -33,12 +34,13 @@ const directionsUrl = ([lng, lat]: [number, number]) =>
 
 export function ProfilePage({ mine = false }: { mine?: boolean }) {
   const { id } = useParams();
-  const { me, meId, posts, person, findPerson, signOut, signedIn, located, requireSignIn, blocked, unblockUser } = useStore();
+  const { me, meId, posts, person, findPerson, signOut, signedIn, located, requireSignIn, blocked, unblockUser, slotsOf } = useStore();
   const flags = usePromotionFlags();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [promoting, setPromoting] = useState(false);
   const [choosing, setChoosing] = useState(false);
+  const [booking, setBooking] = useState(false);
 
   if (id === meId) return <Navigate to="/me" replace />;
   if (mine && !signedIn)
@@ -66,6 +68,7 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
   const color = roleInfo(p.role).color;
   const away = mine || !located ? null : milesBetween(me.coords, p.coords);
   const message = () => requireSignIn(`Sign in to message ${p.name}.`) && navigate(`/messages/${p.id}`);
+  const openCount = mine ? 0 : (slotsOf(p.id)?.filter((s) => !s.booked).length ?? 0);
 
   return (
     <div className="page profile">
@@ -115,6 +118,11 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
                   {!editing && <Icon name="edit" size={16} />} {editing ? 'Done' : 'Edit profile'}
                 </button>
                 {!editing && (
+                  <button className="btn" onClick={() => setBooking(true)}>
+                    <Icon name="calendar" size={16} /> Booking times
+                  </button>
+                )}
+                {!editing && (
                   <Link className="btn" to="/promotions">
                     Your promotions
                   </Link>
@@ -129,6 +137,10 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
               <>
                 <button className="btn primary" onClick={message}>
                   <Icon name="chat" size={17} /> Message
+                </button>
+                <button className="btn" onClick={() => setBooking(true)}>
+                  <Icon name="calendar" size={16} /> Booking times
+                  {openCount > 0 && <span className="count">{openCount}</span>}
                 </button>
                 <SafetyMenu target={{ userId: p.id, name: p.name, type: 'profile', id: p.id }} />
               </>
@@ -204,6 +216,7 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
       )}
 
       {promoting && <PromoteModal onClose={() => setPromoting(false)} />}
+      {booking && (mine ? <BookingEditor onClose={() => setBooking(false)} /> : <BookingTimes person={p} onClose={() => setBooking(false)} />)}
       {choosing && (
         <PromoteOptions
           onClose={() => setChoosing(false)}

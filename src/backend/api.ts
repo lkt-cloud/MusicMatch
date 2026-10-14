@@ -3,7 +3,7 @@
 
 import { supabase } from './client';
 import { toGenreIds } from '../data/genres';
-import type { Attachment, Conversation, Creative, Message, Post, PostKind, Role, Social } from '../data/types';
+import type { Attachment, Conversation, Creative, Message, Post, PostKind, Role, SharedSlot, Slot, Social } from '../data/types';
 
 const db = () => {
   if (!supabase) throw new Error('Supabase is not configured');
@@ -227,6 +227,7 @@ type MessageRow = {
   recipient_id: string;
   text: string;
   attachments: Attachment[];
+  slots?: SharedSlot[];
   read_at: string | null;
   created_at: string;
 };
@@ -239,6 +240,7 @@ export const toMessage = (r: MessageRow): Message & { to: string; readAt: string
   at: Date.parse(r.created_at),
   readAt: r.read_at,
   ...(r.attachments?.length ? { attachments: r.attachments } : {}),
+  ...(r.slots?.length ? { slots: r.slots } : {}),
 });
 
 /** Groups my messages into conversations, newest first. */
@@ -260,10 +262,11 @@ export async function fetchMessages(meId: string): Promise<Conversation[]> {
   return toConversations(data as MessageRow[], meId);
 }
 
-export async function insertMessage(id: string, from: string, to: string, text: string, attachments?: Attachment[]) {
+export async function insertMessage(id: string, from: string, to: string, text: string, attachments?: Attachment[], slots?: SharedSlot[]) {
   const { error } = await db()
     .from('messages')
-    .insert({ id, sender_id: from, recipient_id: to, text, attachments: attachments ?? [] });
+    // `slots` is only sent when there are some, so plain messages work even before that column exists.
+    .insert({ id, sender_id: from, recipient_id: to, text, attachments: attachments ?? [], ...(slots?.length ? { slots } : {}) });
   if (error) throw error;
 }
 
@@ -282,6 +285,58 @@ export async function deleteConversation(meId: string, other: string) {
 
 export async function markConversationRead(other: string) {
   const { error } = await db().rpc('mark_conversation_read', { other });
+  if (error) throw error;
+}
+
+// ------------------------------------------------------------------ booking times
+
+type SlotRow = { id: string; owner_id: string; starts_at: string; ends_at: string; note: string; booked: boolean };
+
+const toSlot = (r: SlotRow): Slot => ({
+  id: r.id,
+  ownerId: r.owner_id,
+  start: Date.parse(r.starts_at),
+  end: Date.parse(r.ends_at),
+  note: r.note,
+  booked: r.booked,
+});
+
+/** Someone's booking times that haven't ended yet, soonest first. */
+export async function fetchSlots(ownerId: string): Promise<Slot[]> {
+  const { data, error } = await db()
+    .from('booking_slots')
+    .select('id, owner_id, starts_at, ends_at, note, booked')
+    .eq('owner_id', ownerId)
+    .gt('ends_at', new Date().toISOString())
+    .order('starts_at')
+    .limit(300);
+  if (error) throw error;
+  return (data as SlotRow[]).map(toSlot);
+}
+
+export async function insertSlots(slots: Slot[]) {
+  const { error } = await db()
+    .from('booking_slots')
+    .insert(
+      slots.map((s) => ({
+        id: s.id,
+        owner_id: s.ownerId,
+        starts_at: new Date(s.start).toISOString(),
+        ends_at: new Date(s.end).toISOString(),
+        note: s.note,
+        booked: s.booked,
+      })),
+    );
+  if (error) throw error;
+}
+
+export async function setSlotBooked(id: string, booked: boolean) {
+  const { error } = await db().from('booking_slots').update({ booked }).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteSlot(id: string) {
+  const { error } = await db().from('booking_slots').delete().eq('id', id);
   if (error) throw error;
 }
 

@@ -1,4 +1,5 @@
 import {
+  CalendarBlank,
   CaretDown,
   CaretLeft,
   ChatCircle,
@@ -91,6 +92,7 @@ const ICONS = {
   image: Image,
   clip: Paperclip,
   more: DotsThree,
+  calendar: CalendarBlank,
   flag: Flag,
   block: Prohibit,
   download: DownloadSimple,

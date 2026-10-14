@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, NavLink, useNavigate, useParams } from 'react-router-dom';
+import { Link, NavLink, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { saveFiles } from '../data/attachments';
 import { KIND_ICON, PendingTray, usePendingFiles } from '../components/AttachPicker';
 import type { Message } from '../data/types';
@@ -11,12 +11,14 @@ import { Icon } from '../components/Icon';
 import { RoleLine } from '../components/RoleBadge';
 import { timeAgo } from '../components/time';
 import { ReportModal, SafetyMenu } from '../components/Safety';
+import { ShareSlotsModal, SlotsCard, formatSlot } from '../components/Booking';
 
 const KIND_LABEL = { image: 'Photo', video: 'Video', audio: 'Audio', file: 'File' } as const;
 
 /** One-line summary of a message for the inbox. */
 function preview(m: Message) {
   if (m.text) return m.text;
+  if (m.slots?.length) return `Booking times (${m.slots.length})`;
   const files = m.attachments ?? [];
   if (files.length === 1) return files[0].kind === 'audio' || files[0].kind === 'file' ? files[0].name : KIND_LABEL[files[0].kind];
   return `${files.length} attachments`;
@@ -29,7 +31,7 @@ export function MessagesPage() {
 
 function MessagesPageContent() {
   const { id } = useParams();
-  const { conversations, person, meId } = useStore();
+  const { conversations, person, meId, isOnline } = useStore();
 
   return (
     <div className={`messages${id ? ' has-thread' : ''}`}>
@@ -46,7 +48,7 @@ function MessagesPageContent() {
             return (
               <li key={c.id}>
                 <NavLink to={`/messages/${c.withId}`} className={`inbox-item${c.unread ? ' is-unread' : ''}`}>
-                  <Avatar person={who} size={46} />
+                  <Avatar person={who} size={46} online={isOnline(c.withId)} />
                   <span className="inbox-text">
                     <span className="inbox-top">
                       <strong>{who.name}</strong>
@@ -79,16 +81,26 @@ function EmptyThread() {
 }
 
 function Thread({ withId }: { withId: string }) {
-  const { conversations, person, meId, sendMessage, deleteMessage, deleteConversation, markRead } = useStore();
+  const { conversations, person, meId, sendMessage, deleteMessage, deleteConversation, markRead, isOnline } = useStore();
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const [sharing, setSharing] = useState(false);
   const who = person(withId);
   const convo = conversations.find((c) => c.withId === withId);
-  const [text, setText] = useState('');
+  // "Request" on someone's booking times opens here with the message already written.
+  const [text, setText] = useState(() => {
+    const book = params.get('book');
+    return book ? `Hi! I’d like to book ${book}. Is it still open?` : '';
+  });
+  useEffect(() => {
+    if (params.has('book')) setParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const online = isOnline(withId);
   const picker = usePendingFiles();
   const [sending, setSending] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [confirming, setConfirming] = useState<string | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [reporting, setReporting] = useState<string | null>(null);
   // On touch screens there's no hover, so tapping a message reveals its delete button.
   const [picked, setPicked] = useState<string | null>(null);
@@ -146,31 +158,29 @@ function Thread({ withId }: { withId: string }) {
           <Icon name="back" />
         </Link>
         <Link to={`/u/${who.id}`} className="thread-who">
-          <Avatar person={who} size={38} badge />
+          <Avatar person={who} size={38} online={online} />
           <span className="thread-who-text">
             <strong>{who.name}</strong>
             <span className="muted small">
-              <RoleLine person={who} /> · {who.city}
+              <span className={online ? 'status-online' : ''}>{online ? 'Online' : 'Offline'}</span> · <RoleLine person={who} /> · {who.city}
             </span>
           </span>
         </Link>
         <span className="thread-safety">
-          <SafetyMenu target={{ userId: who.id, name: who.name, type: 'profile', id: who.id }} onBlocked={() => navigate('/messages')} />
+          <SafetyMenu
+            target={{ userId: who.id, name: who.name, type: 'profile', id: who.id }}
+            label="Conversation options"
+            onBlocked={() => navigate('/messages')}
+            extra={
+              convo
+                ? [
+                    { label: 'View profile', icon: 'user', onClick: () => navigate(`/u/${who.id}`) },
+                    { label: 'Delete conversation', icon: 'trash', danger: true, onClick: () => setConfirming('conversation') },
+                  ]
+                : [{ label: 'View profile', icon: 'user', onClick: () => navigate(`/u/${who.id}`) }]
+            }
+          />
         </span>
-        {convo && (
-          <div className="thread-menu">
-            <button className="icon-btn ghost" onClick={() => setMenuOpen((o) => !o)} aria-label="Conversation options" aria-expanded={menuOpen}>
-              <Icon name="more" size={22} />
-            </button>
-            {menuOpen && (
-              <div className="menu" role="menu" onMouseLeave={() => setMenuOpen(false)}>
-                <button role="menuitem" className="menu-danger" onClick={() => { setMenuOpen(false); setConfirming('conversation'); }}>
-                  <Icon name="trash" size={16} /> Delete conversation
-                </button>
-              </div>
-            )}
-          </div>
-        )}
       </header>
 
       {confirming === 'conversation' && (
@@ -221,6 +231,9 @@ function Thread({ withId }: { withId: string }) {
                       ))}
                     </div>
                   )}
+                  {m.slots?.length ? (
+                    <SlotsCard slots={m.slots} mine={mine} from={who} onPick={(s) => setText(`Hi! I’d like to book ${formatSlot(s)}. Is it still open?`)} />
+                  ) : null}
                   {m.text && <div className={`bubble${mine ? ' mine' : ''}`}>{m.text}</div>}
                 </div>
                 {!mine && (
@@ -260,6 +273,9 @@ function Thread({ withId }: { withId: string }) {
         <button className="icon-btn ghost" onClick={picker.pickFiles} aria-label="Send audio or files" title="Audio & files (mp3, wav, mp4…)">
           <Icon name="clip" size={20} />
         </button>
+        <button className="icon-btn ghost" onClick={() => setSharing(true)} aria-label="Send booking times" title="Send your booking times">
+          <Icon name="calendar" size={20} />
+        </button>
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -278,6 +294,8 @@ function Thread({ withId }: { withId: string }) {
           <Icon name="send" size={18} />
         </button>
       </div>
+
+      {sharing && <ShareSlotsModal to={who} onClose={() => setSharing(false)} />}
 
       {dragging && (
         <div className="drop-hint">

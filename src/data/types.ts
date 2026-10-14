@@ -81,7 +81,13 @@ export type AttachmentKind = 'image' | 'audio' | 'video' | 'file';
 /** A file sent in a message. The bytes are stored separately (see data/attachments.ts). */
 export type Attachment = { id: string; name: string; type: string; size: number; kind: AttachmentKind };
 
-export type Message = { id: string; from: string; text: string; at: number; attachments?: Attachment[] };
+/** A time frame someone is open for bookings. Times are milliseconds since 1970 (like Date.now()). */
+export type Slot = { id: string; ownerId: string; start: number; end: number; note: string; booked: boolean };
+
+/** Booking times as sent in a message: a copy, so the message reads the same if the time changes later. */
+export type SharedSlot = { id: string; start: number; end: number; note: string };
+
+export type Message = { id: string; from: string; text: string; at: number; attachments?: Attachment[]; slots?: SharedSlot[] };
 
 export type Conversation = {
   id: string;

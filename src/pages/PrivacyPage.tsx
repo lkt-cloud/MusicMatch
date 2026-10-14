@@ -63,6 +63,13 @@ export function PrivacyPage() {
             (paid, active, cancelled), what you bought and a Stripe customer reference. We never see or store your card number.
           </li>
           <li>
+            <b>Booking times:</b> the time frames you add as open for bookings, and any you send in messages.
+          </li>
+          <li>
+            <b>Online status:</b> while you have Music Match open, whether you’re online right now. We don’t keep a history
+            of it, and you can hide it in Settings.
+          </li>
+          <li>
             <b>Safety:</b> who you block, and the reports you send us (what you reported, why, and anything you write).
           </li>
           <li>
@@ -86,8 +93,11 @@ export function PrivacyPage() {
       <Section n={3} id="visible" title="Who can see what">
         <ul>
           <li>
-            <b>Public:</b> your profile, posts, comments and likes can be seen by anyone, including people who aren’t signed
+            <b>Public:</b> your profile, booking times, posts, comments and likes can be seen by anyone, including people who aren’t signed
             in. Don’t put anything there you want to keep private.
+          </li>
+          <li>
+            <b>Online status:</b> signed-in people can see whether you’re online, unless you turn it off in Settings.
           </li>
           <li>
             <b>Messages and message files:</b> only you and the person you’re talking to. They can keep or forward what you

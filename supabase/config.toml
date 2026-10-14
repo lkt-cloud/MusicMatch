@@ -4,3 +4,7 @@ project_id = "music-match"
 [functions.stripe-webhook]
 # Stripe can't send a Supabase login token; the function checks Stripe's signature instead.
 verify_jwt = false
+
+[functions.push]
+# Called by the database with a shared secret (x-hook-secret), not by signed-in people.
+verify_jwt = false

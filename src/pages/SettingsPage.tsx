@@ -7,12 +7,14 @@ import { changeEmail, changePassword, currentEmail, deleteAccount } from '../bac
 import { hasRole } from '../data/roles';
 import { Icon, type IconName } from '../components/Icon';
 import { Avatar } from '../components/Avatar';
+import { DevicePush } from '../components/Notify';
 import { MapSpot } from './ProfilePage';
 
 const VERSION = '1.0';
 
 export function SettingsPage() {
-  const { live, signedIn, requireSignIn, me, mapMode, setMapMode, signOut, blocked, unblockUser, person } = useStore();
+  const { live, signedIn, requireSignIn, me, mapMode, setMapMode, signOut, blocked, unblockUser, person, notificationPrefs, setNotificationPrefs } =
+    useStore();
   const settings = useSettings();
   const account = live && signedIn;
 
@@ -64,6 +66,25 @@ export function SettingsPage() {
           <Switch checked={settings.locateOnOpen} onChange={(v) => setSetting('locateOnOpen', v)} label="Find me when the map opens" />
         </Row>
       </Section>
+
+      {signedIn && (
+        <Section icon="bell" title="Notifications">
+          {live && (
+            <Row label="On this device" note="Notifications on this phone or computer. You can turn them on or off on each device.">
+              <DevicePush />
+            </Row>
+          )}
+          <Row label="Messages" note="When someone sends you a message.">
+            <Switch checked={notificationPrefs.messages} onChange={(v) => setNotificationPrefs({ messages: v })} label="Messages" />
+          </Row>
+          <Row label="Booking requests and updates" note="New requests, and when a booking is confirmed, declined or cancelled.">
+            <Switch checked={notificationPrefs.bookings} onChange={(v) => setNotificationPrefs({ bookings: v })} label="Booking requests and updates" />
+          </Row>
+          <Row label="Session reminders" note="Days before, the evening before, the morning of, and 2 hours and 30 minutes before each session.">
+            <Switch checked={notificationPrefs.reminders} onChange={(v) => setNotificationPrefs({ reminders: v })} label="Session reminders" />
+          </Row>
+        </Section>
+      )}
 
       {signedIn && (
         <Section icon="pin" title="Privacy">

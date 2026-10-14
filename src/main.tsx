@@ -12,10 +12,15 @@ import { SettingsPage } from './pages/SettingsPage';
 import { TermsPage } from './pages/TermsPage';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { LegalNoticePage } from './pages/LegalNoticePage';
+import { BookingsPage } from './pages/BookingsPage';
+import { registerServiceWorker } from './push';
+import { LIVE } from './backend/client';
 import { applyAppearance } from './settings';
 import './styles.css';
 
 applyAppearance();
+// Shows push notifications in browsers (see public/sw.js).
+if (LIVE) registerServiceWorker();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -27,6 +32,7 @@ createRoot(document.getElementById('root')!).render(
             <Route path="feed" element={<FeedPage />} />
             <Route path="messages" element={<MessagesPage />} />
             <Route path="messages/:id" element={<MessagesPage />} />
+            <Route path="bookings" element={<BookingsPage />} />
             <Route path="u/:id" element={<ProfilePage />} />
             <Route path="me" element={<ProfilePage mine />} />
             <Route path="promotions" element={<PromotionsPage />} />

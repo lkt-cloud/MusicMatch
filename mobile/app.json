@@ -42,6 +42,12 @@
         }
       ],
       [
+        "expo-notifications",
+        {
+          "color": "#e2b04a"
+        }
+      ],
+      [
         "expo-location",
         {
           "locationWhenInUsePermission": "Music Match uses your location to show creatives near you."

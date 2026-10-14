@@ -3,7 +3,22 @@
 
 import { supabase } from './client';
 import { toGenreIds } from '../data/genres';
-import type { Attachment, Conversation, Creative, Message, Post, PostKind, Role, SharedSlot, Slot, Social } from '../data/types';
+import type {
+  Attachment,
+  Booking,
+  Conversation,
+  Creative,
+  Message,
+  Notice,
+  NotificationPrefs,
+  Post,
+  PostKind,
+  Role,
+  ServiceType,
+  SharedSlot,
+  Slot,
+  Social,
+} from '../data/types';
 
 const db = () => {
   if (!supabase) throw new Error('Supabase is not configured');
@@ -337,6 +352,130 @@ export async function setSlotBooked(id: string, booked: boolean) {
 
 export async function deleteSlot(id: string) {
   const { error } = await db().from('booking_slots').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ------------------------------------------------------------------ bookings
+
+type BookingRow = {
+  id: string;
+  provider_id: string;
+  client_id: string;
+  slot_id: string | null;
+  service: ServiceType;
+  starts_at: string;
+  ends_at: string;
+  note: string;
+  status: Booking['status'];
+  cancelled_by: string | null;
+  created_at: string;
+};
+
+const toBooking = (r: BookingRow): Booking => ({
+  id: r.id,
+  providerId: r.provider_id,
+  clientId: r.client_id,
+  slotId: r.slot_id,
+  service: r.service,
+  start: Date.parse(r.starts_at),
+  end: Date.parse(r.ends_at),
+  note: r.note,
+  status: r.status,
+  cancelledBy: r.cancelled_by,
+  createdAt: Date.parse(r.created_at),
+});
+
+/** Your bookings (as provider or client), from the last month onwards. */
+export async function fetchBookings(): Promise<Booking[]> {
+  const { data, error } = await db()
+    .from('bookings')
+    .select('*')
+    .gt('ends_at', new Date(Date.now() - 30 * 86_400_000).toISOString())
+    .order('starts_at')
+    .limit(300);
+  if (error) throw error;
+  return (data as BookingRow[]).map(toBooking);
+}
+
+export async function requestBooking(slotId: string, service: ServiceType, note: string) {
+  const { error } = await db().rpc('request_booking', { p_slot: slotId, p_service: service, p_note: note });
+  if (error) throw error;
+}
+
+export async function respondBooking(id: string, accept: boolean) {
+  const { error } = await db().rpc('respond_booking', { p_booking: id, p_accept: accept });
+  if (error) throw error;
+}
+
+export async function cancelBooking(id: string) {
+  const { error } = await db().rpc('cancel_booking', { p_booking: id });
+  if (error) throw error;
+}
+
+// ------------------------------------------------------------------ notifications
+
+type NoticeRow = {
+  id: string;
+  kind: Notice['kind'];
+  title: string;
+  body: string;
+  url: string;
+  actor_id: string | null;
+  booking_id: string | null;
+  read_at: string | null;
+  created_at: string;
+};
+
+export const toNotice = (r: NoticeRow): Notice => ({
+  id: r.id,
+  kind: r.kind,
+  title: r.title,
+  body: r.body,
+  url: r.url,
+  actorId: r.actor_id,
+  bookingId: r.booking_id,
+  read: !!r.read_at,
+  at: Date.parse(r.created_at),
+});
+
+export async function fetchNotices(): Promise<Notice[]> {
+  const { data, error } = await db()
+    .from('notifications')
+    .select('id, kind, title, body, url, actor_id, booking_id, read_at, created_at')
+    .eq('inbox', true)
+    .order('created_at', { ascending: false })
+    .limit(60);
+  if (error) throw error;
+  return (data as NoticeRow[]).map(toNotice);
+}
+
+export async function markNoticesRead() {
+  const { error } = await db().rpc('mark_notifications_read');
+  if (error) throw error;
+}
+
+export async function fetchNotificationPrefs(userId: string): Promise<NotificationPrefs & { timezone: string } | null> {
+  const { data, error } = await db()
+    .from('notification_settings')
+    .select('messages, bookings, reminders, timezone')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function saveNotificationPrefs(userId: string, patch: Partial<NotificationPrefs> & { timezone?: string }) {
+  const { error } = await db().from('notification_settings').upsert({ user_id: userId, ...patch });
+  if (error) throw error;
+}
+
+export async function savePushSubscription(kind: 'web' | 'expo', endpoint: string, keys?: unknown) {
+  const { error } = await db().rpc('save_push_subscription', { p_kind: kind, p_endpoint: endpoint, p_keys: keys ?? null });
+  if (error) throw error;
+}
+
+export async function removePushSubscription(endpoint: string) {
+  const { error } = await db().rpc('remove_push_subscription', { p_endpoint: endpoint });
   if (error) throw error;
 }
 

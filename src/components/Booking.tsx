@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store';
-import type { Creative, SharedSlot, Slot } from '../data/types';
+import type { Creative, Role, ServiceType, SharedSlot, Slot } from '../data/types';
+import { rolesOf } from '../data/roles';
+import { NotifyCard } from './Notify';
 import { Icon } from './Icon';
 
 // Booking times: the time frames someone is open for sessions. They set them on their profile,
@@ -35,6 +37,27 @@ function byDay<T extends { start: number }>(slots: T[]): [string, T[]][] {
 }
 
 const share = (s: Slot): SharedSlot => ({ id: s.id, start: s.start, end: s.end, note: s.note });
+
+export const SERVICE_LABEL: Record<ServiceType, string> = {
+  studio_session: 'Studio session',
+  music_video: 'Music video shoot',
+  production: 'Production session',
+  mixing: 'Mixing session',
+  recording: 'Recording session',
+  performance: 'Performance',
+  session: 'Other session',
+};
+
+const ROLE_SERVICES: Record<Role, ServiceType[]> = {
+  studio: ['studio_session', 'recording', 'mixing'],
+  videographer: ['music_video'],
+  producer: ['production'],
+  engineer: ['recording', 'mixing'],
+  artist: ['performance'],
+};
+
+/** What you can book someone for, from what they do. */
+export const servicesFor = (p: Creative): ServiceType[] => [...new Set([...rolesOf(p).flatMap((r) => ROLE_SERVICES[r]), 'session' as const])];
 
 function useEscape(onClose: () => void) {
   useEffect(() => {
@@ -214,20 +237,22 @@ export function BookingEditor({ onClose }: { onClose: () => void }) {
 
 // ------------------------------------------------------------------ someone else's times
 
-/** Someone's open times, from their profile. Tapping one starts a message asking for it. */
+/** Someone's open times, from their profile. Tapping one asks to book it. */
 export function BookingTimes({ person, onClose }: { person: Creative; onClose: () => void }) {
   const { slotsOf, requireSignIn } = useStore();
-  const navigate = useNavigate();
   const open = slotsOf(person.id)?.filter((s) => !s.booked);
   const first = person.name.split(' ')[0];
+  const [picked, setPicked] = useState<Slot | null>(null);
 
   const request = (s: Slot) => {
     if (!requireSignIn(`Sign in to book ${first}.`)) return;
-    navigate(`/messages/${person.id}?book=${encodeURIComponent(formatSlot(s))}`);
+    setPicked(s);
   };
 
+  if (picked) return <BookingRequest provider={person} slot={picked} onClose={onClose} onBack={() => setPicked(null)} />;
+
   return (
-    <Sheet title={`${first}’s booking times`} sub="Times are shown in your time zone. Tap one to ask for it in a message." onClose={onClose}>
+    <Sheet title={`${first}’s booking times`} sub="Times are shown in your time zone. Tap one to book it." onClose={onClose}>
       <div className="booking-list">
         {open === undefined ? (
           <p className="muted small">Loading…</p>
@@ -244,13 +269,122 @@ export function BookingTimes({ person, onClose }: { person: Creative; onClose: (
                     {s.note && <small>{s.note}</small>}
                   </span>
                   <span className="booking-ask">
-                    Request <Icon name="send" size={14} />
+                    Book <Icon name="chevron" size={14} />
                   </span>
                 </button>
               ))}
             </div>
           ))
         )}
+      </div>
+    </Sheet>
+  );
+}
+
+// ------------------------------------------------------------------ asking to book
+
+/**
+ * Asks a provider for one of their times: what it's for, and a note. They accept or decline,
+ * and both of you get reminders once it's confirmed.
+ */
+export function BookingRequest({
+  provider,
+  slot,
+  onClose,
+  onBack,
+}: {
+  provider: Creative;
+  slot: { id: string; start: number; end: number; note?: string };
+  onClose: () => void;
+  onBack?: () => void;
+}) {
+  const { requestBooking } = useStore();
+  const navigate = useNavigate();
+  const services = servicesFor(provider);
+  const [service, setService] = useState<ServiceType>(services[0]);
+  const [note, setNote] = useState('');
+  const [state, setState] = useState<'form' | 'sending' | 'sent'>('form');
+  const [error, setError] = useState<string | null>(null);
+  const first = provider.name.split(' ')[0];
+
+  const send = async () => {
+    setState('sending');
+    setError(null);
+    try {
+      await requestBooking(slot, provider.id, service, note.trim());
+      setState('sent');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Couldn’t send that. Try again.');
+      setState('form');
+    }
+  };
+
+  if (state === 'sent')
+    return (
+      <Sheet title="Request sent" onClose={onClose}>
+        <p className="promote-sub">
+          {first} will accept or decline your {SERVICE_LABEL[service].toLowerCase()} on {formatSlot(slot)}. We’ll let you know, and remind
+          you before the session.
+        </p>
+        <NotifyCard why="So you hear back as soon as they answer, and get reminders before the session." />
+        <div className="cropper-foot">
+          <button
+            className="btn"
+            onClick={() => {
+              onClose();
+              navigate('/bookings');
+            }}
+          >
+            See your bookings
+          </button>
+          <button className="btn primary" onClick={onClose}>
+            Done
+          </button>
+        </div>
+      </Sheet>
+    );
+
+  return (
+    <Sheet title={`Book ${first}`} onClose={onClose}>
+      <div className="booking-summary">
+        <Icon name="calendar" size={18} />
+        <span>
+          <strong>{formatDay(slot.start)}</strong>
+          <span>
+            {formatTimes(slot)}
+            {slot.note ? ` · ${slot.note}` : ''}
+          </span>
+        </span>
+      </div>
+      <div className="booking-services" role="radiogroup" aria-label="What it’s for">
+        <span className="field-label">What’s it for?</span>
+        <div className="chips">
+          {services.map((s) => (
+            <button key={s} type="button" role="radio" aria-checked={service === s} className={`chip${service === s ? ' is-on' : ''}`} onClick={() => setService(s)}>
+              {SERVICE_LABEL[s]}
+            </button>
+          ))}
+        </div>
+      </div>
+      <textarea
+        className="promote-caption"
+        rows={3}
+        maxLength={300}
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder={`Anything ${first} should know? (optional) e.g. what you’re working on, how many people are coming`}
+        aria-label="Note"
+      />
+      {error && <p className="field-note is-bad">{error}</p>}
+      <div className="cropper-foot">
+        {onBack && (
+          <button className="btn" onClick={onBack}>
+            Back
+          </button>
+        )}
+        <button className="btn primary" onClick={send} disabled={state === 'sending'}>
+          {state === 'sending' ? 'Sending…' : 'Send request'}
+        </button>
       </div>
     </Sheet>
   );

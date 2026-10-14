@@ -66,6 +66,14 @@ export function PrivacyPage() {
             <b>Booking times:</b> the time frames you add as open for bookings, and any you send in messages.
           </li>
           <li>
+            <b>Bookings:</b> requests you send or receive (the time, what it’s for, your note) and whether they’re confirmed,
+            declined or cancelled. Only you and the other person can see them.
+          </li>
+          <li>
+            <b>Notifications:</b> if you turn them on, a code for your phone or browser so we can send them, your time zone so
+            reminders arrive at the right local time, and which kinds you want. We keep a list of the notifications we sent you.
+          </li>
+          <li>
             <b>Online status:</b> while you have Music Match open, whether you’re online right now. We don’t keep a history
             of it, and you can hide it in Settings.
           </li>
@@ -116,6 +124,7 @@ export function PrivacyPage() {
           <li><b>Supabase:</b> database, sign-in, file storage and live updates. Everything you add to Music Match is stored there.</li>
           <li><b>Vercel:</b> hosts the website.</li>
           <li><b>Stripe:</b> payments for promotions.</li>
+          <li><b>Expo and your browser’s push service (Apple, Google or Mozilla):</b> deliver notifications to your phone or browser. They receive the notification text.</li>
           <li><b>OpenFreeMap / OpenStreetMap:</b> map pictures (your device asks them for map tiles, so they see your IP address and the area you’re looking at) and address look-ups (when a studio types an address, the text is sent to find it on the map).</li>
           <li><b>Fontshare:</b> the fonts we use (your IP address is visible to them when fonts load).</li>
         </ul>

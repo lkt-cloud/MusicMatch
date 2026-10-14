@@ -11,3 +11,6 @@ supabase/.temp
 
 # Local Expo Go QR code
 expo-qr.png
+
+# Secret for the push notification hook (paste once in the Supabase SQL Editor, never commit)
+supabase/push-secret.local.sql

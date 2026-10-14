@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, NavLink, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, NavLink, useNavigate, useParams } from 'react-router-dom';
 import { saveFiles } from '../data/attachments';
 import { KIND_ICON, PendingTray, usePendingFiles } from '../components/AttachPicker';
 import type { Message } from '../data/types';
@@ -11,7 +11,8 @@ import { Icon } from '../components/Icon';
 import { RoleLine } from '../components/RoleBadge';
 import { timeAgo } from '../components/time';
 import { ReportModal, SafetyMenu } from '../components/Safety';
-import { ShareSlotsModal, SlotsCard, formatSlot } from '../components/Booking';
+import { BookingRequest, ShareSlotsModal, SlotsCard } from '../components/Booking';
+import type { SharedSlot } from '../data/types';
 
 const KIND_LABEL = { image: 'Photo', video: 'Video', audio: 'Audio', file: 'File' } as const;
 
@@ -83,19 +84,11 @@ function EmptyThread() {
 function Thread({ withId }: { withId: string }) {
   const { conversations, person, meId, sendMessage, deleteMessage, deleteConversation, markRead, isOnline } = useStore();
   const navigate = useNavigate();
-  const [params, setParams] = useSearchParams();
   const [sharing, setSharing] = useState(false);
+  const [booking, setBooking] = useState<SharedSlot | null>(null);
   const who = person(withId);
   const convo = conversations.find((c) => c.withId === withId);
-  // "Request" on someone's booking times opens here with the message already written.
-  const [text, setText] = useState(() => {
-    const book = params.get('book');
-    return book ? `Hi! I’d like to book ${book}. Is it still open?` : '';
-  });
-  useEffect(() => {
-    if (params.has('book')) setParams({}, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const [text, setText] = useState('');
   const online = isOnline(withId);
   const picker = usePendingFiles();
   const [sending, setSending] = useState(false);
@@ -232,7 +225,7 @@ function Thread({ withId }: { withId: string }) {
                     </div>
                   )}
                   {m.slots?.length ? (
-                    <SlotsCard slots={m.slots} mine={mine} from={who} onPick={(s) => setText(`Hi! I’d like to book ${formatSlot(s)}. Is it still open?`)} />
+                    <SlotsCard slots={m.slots} mine={mine} from={who} onPick={setBooking} />
                   ) : null}
                   {m.text && <div className={`bubble${mine ? ' mine' : ''}`}>{m.text}</div>}
                 </div>
@@ -296,6 +289,7 @@ function Thread({ withId }: { withId: string }) {
       </div>
 
       {sharing && <ShareSlotsModal to={who} onClose={() => setSharing(false)} />}
+      {booking && <BookingRequest provider={who} slot={booking} onClose={() => setBooking(null)} />}
 
       {dragging && (
         <div className="drop-hint">

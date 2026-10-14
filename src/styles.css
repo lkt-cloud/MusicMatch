@@ -1324,3 +1324,81 @@ button, .nav-link, .chip { -webkit-user-select: none; user-select: none; touch-a
 .slots-card-slot.is-pick { cursor: pointer; border: 1px solid var(--line); transition: border-color 0.12s; }
 @media (hover: hover) { .slots-card-slot.is-pick:hover { border-color: var(--accent); } }
 .slots-card-book { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--accent); }
+
+/* ---------- Notifications ---------- */
+
+/* On phones the tab bar has five spots; Settings is reached from Profile (the gear). */
+@media (max-width: 767px) { .nav-link.is-settings { display: none; } }
+
+.notify-card {
+  display: flex; align-items: center; gap: 14px; padding: 14px 16px; margin-bottom: 20px;
+  border-radius: var(--r-md); background: var(--accent-soft); border: 1px solid rgba(226, 176, 74, 0.35);
+}
+.notify-card.is-compact { margin: 0; }
+.notify-icon { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: var(--on-accent); }
+.notify-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--text-2); }
+.notify-text strong { color: var(--text); font-size: 15px; }
+@media (max-width: 480px) { .notify-card { flex-wrap: wrap; } .notify-card .btn { width: 100%; } }
+.device-push { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+
+.inapp-banner {
+  position: fixed; z-index: 120; top: calc(12px + env(safe-area-inset-top)); left: 50%; translate: -50% 0;
+  width: min(440px, calc(100% - 24px)); display: flex; align-items: center; gap: 4px; padding: 6px 6px 6px 12px;
+  border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line-strong); box-shadow: var(--shadow);
+  animation: banner-in 0.25s ease-out;
+}
+@keyframes banner-in { from { opacity: 0; translate: -50% -12px; } }
+.inapp-banner-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 4px 0; text-align: left; color: var(--text); }
+.inapp-banner-main > svg { flex: none; color: var(--accent); }
+.inapp-banner-text { min-width: 0; display: flex; flex-direction: column; }
+.inapp-banner-text strong { font-size: 14px; }
+.inapp-banner-text span { font-size: 13px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- Bookings ---------- */
+
+.bookings { max-width: 760px; }
+.bookings-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.bookings-section { margin-bottom: 26px; display: flex; flex-direction: column; gap: 10px; }
+.bookings-section h2 { display: flex; align-items: center; gap: 8px; font-size: 17px; }
+.bookings-section h2 .count {
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--accent); color: var(--on-accent);
+  font-size: 12px; line-height: 20px; text-align: center;
+}
+.bookings-quiet { padding: 4px 2px; }
+.bookings-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 28px 20px; margin-bottom: 26px; text-align: center; color: var(--text-2); }
+.bookings-empty > svg { color: var(--accent); }
+.bookings-empty strong { color: var(--text); }
+.bookings-empty-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+
+.booking-card { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.booking-card.is-pending { border-color: rgba(226, 176, 74, 0.4); }
+.booking-card-top { display: flex; align-items: center; gap: 12px; }
+.booking-card-who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.booking-card-who strong { font-size: 16px; }
+.booking-status { flex: none; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--text-2); }
+.booking-status.is-confirmed { background: rgba(140, 207, 152, 0.15); color: var(--good); }
+.booking-status.is-pending { background: var(--accent-soft); color: var(--accent); }
+.booking-card-when { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 15px; }
+.booking-card-when svg { color: var(--accent); }
+.booking-card-note { font-size: 14px; color: var(--text-2); font-style: italic; }
+.booking-card-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.booking-card-actions .btn:first-child { margin-right: auto; }
+
+.booking-summary {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--r-md);
+  background: var(--bg); border: 1px solid var(--line);
+}
+.booking-summary svg { flex: none; color: var(--accent); }
+.booking-summary > span { display: flex; flex-direction: column; font-size: 14px; color: var(--text-2); }
+.booking-summary strong { color: var(--text); font-size: 15px; }
+.booking-services { display: flex; flex-direction: column; gap: 8px; }
+
+.notice-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.notice { position: relative; display: flex; align-items: flex-start; gap: 12px; padding: 12px; border-radius: var(--r-sm); }
+.notice.is-fresh { background: var(--accent-soft); }
+.notice-icon { flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: var(--surface-2); color: var(--accent); }
+.notice-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 14px; color: var(--text-2); }
+.notice-text strong { color: var(--text); font-size: 15px; }
+.notice-kind { position: absolute; left: 38px; top: 38px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: var(--on-accent); box-shadow: 0 0 0 2px var(--bg); }
+.notice:not(:has(.avatar)) .notice-kind { display: none; }
+.notice-kind.kind-booking_declined, .notice-kind.kind-booking_cancelled { background: var(--surface-3); color: var(--text-2); }

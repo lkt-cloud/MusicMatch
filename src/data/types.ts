@@ -87,6 +87,39 @@ export type Slot = { id: string; ownerId: string; start: number; end: number; no
 /** Booking times as sent in a message: a copy, so the message reads the same if the time changes later. */
 export type SharedSlot = { id: string; start: number; end: number; note: string };
 
+export type ServiceType = 'studio_session' | 'music_video' | 'production' | 'mixing' | 'recording' | 'performance' | 'session';
+
+/** A booking: a client asked for one of a provider's times; the provider accepts or declines. */
+export type Booking = {
+  id: string;
+  providerId: string;
+  clientId: string;
+  slotId: string | null;
+  service: ServiceType;
+  start: number;
+  end: number;
+  note: string;
+  status: 'pending' | 'confirmed' | 'declined' | 'cancelled';
+  cancelledBy: string | null;
+  createdAt: number;
+};
+
+/** Something we told you about: booking news and reminders (shown in the Bookings tab). */
+export type Notice = {
+  id: string;
+  kind: 'booking_request' | 'booking_confirmed' | 'booking_declined' | 'booking_cancelled' | 'reminder' | 'message';
+  title: string;
+  body: string;
+  url: string;
+  actorId: string | null;
+  bookingId: string | null;
+  read: boolean;
+  at: number;
+};
+
+/** What you want push notifications for (saved with your account). */
+export type NotificationPrefs = { messages: boolean; bookings: boolean; reminders: boolean };
+
 export type Message = { id: string; from: string; text: string; at: number; attachments?: Attachment[]; slots?: SharedSlot[] };
 
 export type Conversation = {

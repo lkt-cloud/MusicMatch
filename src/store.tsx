@@ -2,7 +2,19 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Session } from '@supabase/supabase-js';
 import { CREATIVES, ME, ME_ID } from './data/creatives';
 import { SEED_CONVERSATIONS, SEED_POSTS, SEED_PROMOTED } from './data/seed';
-import type { Attachment, Conversation, Creative, Post, PostKind, SharedSlot, Slot } from './data/types';
+import type {
+  Attachment,
+  Booking,
+  Conversation,
+  Creative,
+  Notice,
+  NotificationPrefs,
+  Post,
+  PostKind,
+  ServiceType,
+  SharedSlot,
+  Slot,
+} from './data/types';
 import { deleteFile } from './data/attachments';
 import { toGenreIds } from './data/genres';
 import { LIVE, supabase } from './backend/client';
@@ -11,6 +23,7 @@ import type { ActivePromotion, ReportReason, ReportTarget } from './backend/api'
 import { AuthPage } from './pages/AuthPage';
 import { AREA_MILES } from './map/shared';
 import { useSettings } from './settings';
+import { forgetDevice, setAppBadge, syncPush } from './push';
 
 export type MapMode = 'flat' | 'globe';
 
@@ -62,6 +75,22 @@ export type Store = {
   addSlots: (slots: { start: number; end: number; note: string }[]) => void;
   setSlotBooked: (id: string, booked: boolean) => void;
   deleteSlot: (id: string) => void;
+  /** Your bookings, as the provider or the client, soonest first. */
+  bookings: Booking[];
+  /** Asks a provider for one of their open times. */
+  requestBooking: (slot: { id: string; start: number; end: number }, providerId: string, service: ServiceType, note: string) => Promise<void>;
+  /** The provider accepts or declines a request. */
+  respondBooking: (id: string, accept: boolean) => Promise<void>;
+  cancelBooking: (id: string) => Promise<void>;
+  /** Booking news and reminders (the Bookings tab), newest first. */
+  notices: Notice[];
+  unreadNotices: number;
+  markNoticesRead: () => void;
+  notificationPrefs: NotificationPrefs;
+  setNotificationPrefs: (patch: Partial<NotificationPrefs>) => void;
+  /** A short in-app banner for something that just happened (a message, a booking update). */
+  banner: Banner | null;
+  dismissBanner: () => void;
   deleteMessage: (withId: string, messageId: string) => void;
   deleteConversation: (withId: string) => void;
   markRead: (withId: string) => void;
@@ -77,7 +106,32 @@ export type Store = {
   signOut?: () => void;
 };
 
+export type Banner = { id: string; title: string; body: string; url: string; actorId: string | null };
+
 const StoreContext = createContext<Store | null>(null);
+
+const DEFAULT_PREFS: NotificationPrefs = { messages: true, bookings: true, reminders: true };
+const timeZone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+};
+/** Shows banners for a few seconds; not for a conversation you're already looking at. */
+function useBanner() {
+  const [banner, setBanner] = useState<Banner | null>(null);
+  useEffect(() => {
+    if (!banner) return;
+    const t = window.setTimeout(() => setBanner(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [banner]);
+  const show = useCallback((b: Banner) => {
+    if (window.location.pathname === b.url) return;
+    setBanner(b);
+  }, []);
+  return [banner, show, () => setBanner(null)] as const;
+}
 
 export function useStore() {
   const store = useContext(StoreContext);
@@ -147,6 +201,9 @@ type DemoState = {
   mapMode: MapMode;
   blocked: string[];
   slots: Slot[];
+  bookings: Booking[];
+  notices: Notice[];
+  prefs: NotificationPrefs;
   seedVersion?: number;
 };
 
@@ -176,6 +233,29 @@ function seedSlots(): Slot[] {
     );
 }
 
+/** A sample request someone sent you, so the Bookings tab has something to answer. */
+function seedBookings(): Booking[] {
+  const studio = CREATIVES.find((c) => c.role === 'producer') ?? CREATIVES[0];
+  const day = new Date();
+  day.setHours(0, 0, 0, 0);
+  const start = day.getTime() + 2 * 86_400_000 + 19 * 3_600_000;
+  return [
+    {
+      id: uid(),
+      providerId: ME_ID,
+      clientId: studio.id,
+      slotId: null,
+      service: 'performance',
+      start,
+      end: start + 2 * 3_600_000,
+      note: 'Opening set at our showcase. 20 minutes.',
+      status: 'pending',
+      cancelledBy: null,
+      createdAt: Date.now(),
+    },
+  ];
+}
+
 // In the demo, about half the sample people are "online".
 const demoOnline = (id: string) => id === ME_ID || [...id].reduce((n, ch) => n + ch.charCodeAt(0), 0) % 2 === 0;
 
@@ -196,12 +276,15 @@ function loadDemo(): DemoState {
         mapMode: readMapMode(),
         blocked: saved.blocked ?? [],
         slots: saved.slots ?? seedSlots(),
+        bookings: saved.bookings ?? seedBookings(),
+        notices: saved.notices ?? [],
+        prefs: saved.prefs ?? DEFAULT_PREFS,
       };
     }
   } catch {
     // storage unavailable or corrupt — fall back to seed data
   }
-  return { me: ME, posts: SEED_POSTS, conversations: SEED_CONVERSATIONS, mapMode: readMapMode(), blocked: [], slots: seedSlots(), seedVersion: SEED_VERSION };
+  return { me: ME, posts: SEED_POSTS, conversations: SEED_CONVERSATIONS, mapMode: readMapMode(), blocked: [], slots: seedSlots(), bookings: seedBookings(), notices: [], prefs: DEFAULT_PREFS, seedVersion: SEED_VERSION };
 }
 
 const FILE_REPLIES = ['Just listened — this is hard 🔥', 'Got it, going through it now.', 'Ooh. Let’s build on this one.'];
@@ -218,6 +301,7 @@ const noSearch = async () => [];
 
 function DemoProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<DemoState>(loadDemo);
+  const [banner, showBanner, dismissBanner] = useBanner();
 
   useEffect(() => {
     try {
@@ -348,6 +432,63 @@ function DemoProvider({ children }: { children: ReactNode }) {
       setState((s) => ({ ...s, slots: [...s.slots, ...list.map((x) => ({ ...x, id: uid(), ownerId: ME_ID, booked: false }))] })),
     setSlotBooked: (id, booked) => setState((s) => ({ ...s, slots: s.slots.map((x) => (x.id === id ? { ...x, booked } : x)) })),
     deleteSlot: (id) => setState((s) => ({ ...s, slots: s.slots.filter((x) => x.id !== id) })),
+    bookings: [...state.bookings].sort((a, b) => a.start - b.start),
+    async requestBooking(slot, providerId, service, note) {
+      const booking: Booking = {
+        id: uid(),
+        providerId,
+        clientId: ME_ID,
+        slotId: slot.id,
+        service,
+        start: slot.start,
+        end: slot.end,
+        note,
+        status: 'pending',
+        cancelledBy: null,
+        createdAt: Date.now(),
+      };
+      setState((s) => ({ ...s, bookings: [...s.bookings, booking] }));
+      // Stand-in for the provider answering, so the demo shows the whole flow.
+      window.setTimeout(() => {
+        const name = CREATIVES.find((c) => c.id === providerId)?.name ?? 'They';
+        const notice: Notice = {
+          id: uid(),
+          kind: 'booking_confirmed',
+          title: 'Booking confirmed',
+          body: `${name} confirmed your booking.`,
+          url: '/bookings',
+          actorId: providerId,
+          bookingId: booking.id,
+          read: false,
+          at: Date.now(),
+        };
+        setState((s) => ({
+          ...s,
+          bookings: s.bookings.map((b) => (b.id === booking.id ? { ...b, status: 'confirmed' } : b)),
+          slots: s.slots.map((x) => (x.id === slot.id ? { ...x, booked: true } : x)),
+          notices: [notice, ...s.notices],
+        }));
+        showBanner({ id: notice.id, title: notice.title, body: notice.body, url: notice.url, actorId: providerId });
+      }, 2500);
+    },
+    async respondBooking(id, accept) {
+      setState((s) => ({ ...s, bookings: s.bookings.map((b) => (b.id === id ? { ...b, status: accept ? 'confirmed' : 'declined' } : b)) }));
+    },
+    async cancelBooking(id) {
+      setState((s) => ({
+        ...s,
+        bookings: s.bookings.map((b) => (b.id === id ? { ...b, status: 'cancelled', cancelledBy: ME_ID } : b)),
+        slots: s.slots.map((x) => (s.bookings.some((b) => b.id === id && b.slotId === x.id) ? { ...x, booked: false } : x)),
+      }));
+    },
+    notices: state.notices,
+    unreadNotices: state.notices.filter((n) => !n.read).length,
+    markNoticesRead: () =>
+      setState((s) => (s.notices.some((n) => !n.read) ? { ...s, notices: s.notices.map((n) => ({ ...n, read: true })) } : s)),
+    notificationPrefs: state.prefs,
+    setNotificationPrefs: (patch) => setState((s) => ({ ...s, prefs: { ...s.prefs, ...patch } })),
+    banner,
+    dismissBanner,
   };
 
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
@@ -398,6 +539,10 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
   const [slotsBy, setSlotsBy] = useState<Map<string, Slot[]>>(new Map());
   const slotsRequested = useRef(new Set<string>());
   const [online, setOnline] = useState<Set<string>>(new Set());
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_PREFS);
+  const [banner, showBanner, dismissBanner] = useBanner();
   const { showOnline } = useSettings();
   const [posts, setPosts] = useState<Post[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -552,6 +697,31 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
     };
   }, [userId, showOnline]);
 
+  const refreshBookings = useCallback(() => {
+    api.fetchBookings().then(setBookings, (e) => console.error(e));
+  }, []);
+
+  // Your bookings, notifications and notification settings. Your time zone is saved so
+  // reminders arrive at the right local time, and this device is signed up for push again
+  // if it already allows notifications.
+  useEffect(() => {
+    if (!userId) {
+      setBookings([]);
+      setNotices([]);
+      return;
+    }
+    refreshBookings();
+    api.fetchNotices().then(setNotices, (e) => console.error(e));
+    api
+      .fetchNotificationPrefs(userId)
+      .then((saved) => {
+        if (saved) setPrefs({ messages: saved.messages, bookings: saved.bookings, reminders: saved.reminders });
+        if (saved?.timezone !== timeZone()) return api.saveNotificationPrefs(userId, { timezone: timeZone() });
+      })
+      .catch((e) => console.error(e));
+    syncPush();
+  }, [userId, refreshBookings]);
+
   // Live updates: new messages straight away; posts/comments/likes trigger a refresh.
   useEffect(() => {
     let postsTimer: number | undefined;
@@ -566,7 +736,23 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
           const m = api.toMessage(row as Parameters<typeof api.toMessage>[0]);
           const other = m.from === userId ? m.to : m.from;
           setConversations((cs) => withMessage(cs, other, m, m.from !== userId));
+          if (m.from !== userId)
+            showBanner({
+              id: m.id,
+              title: '',
+              body: m.text || (m.slots?.length ? 'Sent you booking times' : m.attachments?.length ? 'Sent a file' : 'New message'),
+              url: `/messages/${m.from}`,
+              actorId: m.from,
+            });
         })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, ({ new: row }) => {
+          const r = row as Parameters<typeof api.toNotice>[0] & { inbox: boolean };
+          if (!r.inbox) return;
+          const n = api.toNotice(r);
+          setNotices((ns) => (ns.some((x) => x.id === n.id) ? ns : [n, ...ns]));
+          showBanner({ id: n.id, title: n.title, body: n.body, url: n.url, actorId: n.actorId });
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => refreshBookings())
         .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, ({ old }) => {
           const id = (old as { id?: string }).id;
           if (!id) return;
@@ -583,7 +769,7 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
       window.clearTimeout(postsTimer);
       supabase!.removeChannel(channel);
     };
-  }, [userId, refreshPosts]);
+  }, [userId, refreshPosts, refreshBookings, showBanner]);
 
   useEffect(() => () => window.clearTimeout(saveTimer.current), []);
 
@@ -594,6 +780,9 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
   );
   const visiblePosts = useMemo(() => withoutBlocked.posts(posts, blocked), [posts, blocked]);
   const visibleConversations = useMemo(() => withoutBlocked.conversations(conversations, blocked), [conversations, blocked]);
+  const unreadNotices = notices.filter((n) => !n.read).length;
+  const unreadTotal = visibleConversations.filter((c) => c.unread).length + unreadNotices;
+  useEffect(() => setAppBadge(userId ? unreadTotal : 0), [userId, unreadTotal]);
 
   if (!profiles) return <Splash text={error ? `Couldn’t load: ${error}` : 'Loading…'} />;
   // Guests (and, for a moment, someone who's just signed up) get a placeholder profile.
@@ -822,7 +1011,63 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
       if (!requireSignIn('Sign in to report something.') || !userId) throw new Error('Sign in to report.');
       await api.insertReport({ reporterId: userId, reportedUserId: r.userId, target: r.target, targetId: r.targetId, reason: r.reason, details: r.details });
     },
-    signOut: userId ? () => supabase!.auth.signOut() : undefined,
+    bookings,
+    // The database finds the provider from the booking time itself.
+    async requestBooking(slot, _providerId, service, note) {
+      if (!requireSignIn('Sign in to book.') || !userId) throw new Error('Sign in to book.');
+      await api.requestBooking(slot.id, service, note);
+      refreshBookings();
+    },
+    async respondBooking(id, accept) {
+      await api.respondBooking(id, accept);
+      refreshBookings();
+      // Your booking times change when you accept one.
+      if (accept && userId) {
+        slotsRequested.current.delete(userId);
+        setSlotsBy((m) => {
+          const next = new Map(m);
+          next.delete(userId);
+          return next;
+        });
+      }
+    },
+    async cancelBooking(id) {
+      await api.cancelBooking(id);
+      refreshBookings();
+      if (userId) {
+        slotsRequested.current.delete(userId);
+        setSlotsBy((m) => {
+          const next = new Map(m);
+          next.delete(userId);
+          return next;
+        });
+      }
+    },
+    notices,
+    unreadNotices,
+    markNoticesRead() {
+      if (!unreadNotices) return;
+      setNotices((ns) => ns.map((n) => ({ ...n, read: true })));
+      api.markNoticesRead().catch((e) => console.error(e));
+    },
+    notificationPrefs: prefs,
+    setNotificationPrefs(patch) {
+      if (!userId) return;
+      const before = prefs;
+      setPrefs({ ...prefs, ...patch });
+      api.saveNotificationPrefs(userId, patch).catch((e) => {
+        setPrefs(before);
+        fail(e);
+      });
+    },
+    banner,
+    dismissBanner,
+    signOut: userId
+      ? async () => {
+          await forgetDevice();
+          await supabase!.auth.signOut();
+        }
+      : undefined,
   };
 
   return (

@@ -1533,3 +1533,7 @@ button, .nav-link, .chip { -webkit-user-select: none; user-select: none; touch-a
 .country-row-name { flex: 1; min-width: 0; }
 .country-none { padding: 12px; }
 @media (max-width: 767px) { .country-btn { height: 40px; max-width: 160px; } }
+
+/* While the map is open the page itself never scrolls or bounces, so on phones a finger on the
+   map always moves the map (the iPhone app could otherwise treat it as a page scroll). */
+html:has(.map-page), body:has(.map-page) { overflow: hidden; overscroll-behavior: none; }

@@ -266,6 +266,13 @@ export function useMapGestures(target: React.RefObject<HTMLElement | null>, hand
     };
     // Safari's own pinch-to-zoom-the-page; the map handles pinches itself.
     const stopGesture = (e: Event) => e.preventDefault();
+    // Inside the iPhone app (a web view), iOS can decide a moving finger is scrolling the page
+    // and take the touch away a few pixels in (the map then gets "pointercancel" and stops),
+    // even with touch-action: none. Refusing the touch's default action as it moves keeps it
+    // ours. Only on move, so a plain tap still clicks pins and buttons.
+    const stopTouchScroll = (e: TouchEvent) => {
+      if (e.cancelable) e.preventDefault();
+    };
     const stopMenu = (e: MouseEvent) => {
       if (rotating || dragging) e.preventDefault();
     };
@@ -278,6 +285,7 @@ export function useMapGestures(target: React.RefObject<HTMLElement | null>, hand
     el.addEventListener('click', onClick, true);
     el.addEventListener('gesturestart', stopGesture);
     el.addEventListener('gesturechange', stopGesture);
+    el.addEventListener('touchmove', stopTouchScroll, { passive: false });
     el.addEventListener('contextmenu', stopMenu);
     // The browser took the pointer away (e.g. to scroll or show a pop-up) without an "up".
     const onLostCapture = (e: PointerEvent) => {
@@ -303,6 +311,7 @@ export function useMapGestures(target: React.RefObject<HTMLElement | null>, hand
       el.removeEventListener('click', onClick, true);
       el.removeEventListener('gesturestart', stopGesture);
       el.removeEventListener('gesturechange', stopGesture);
+      el.removeEventListener('touchmove', stopTouchScroll);
       el.removeEventListener('contextmenu', stopMenu);
     };
   }, [target]);

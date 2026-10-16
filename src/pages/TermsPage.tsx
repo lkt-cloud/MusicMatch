@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { LEGAL_UPDATED, OPERATOR } from '../data/operator';
+import { lang, t } from '../i18n';
 
 // Plain-language Terms of Service. Have a lawyer (ideally one familiar with Japanese consumer
 // law) review this before relying on it.
@@ -15,6 +16,9 @@ export function TermsPage() {
         <h1>Terms of Service</h1>
         <p className="muted">Last updated {UPDATED}</p>
       </header>
+      {lang() === 'ja' && (
+        <p className="legal-lang-note">この{t('Terms of Service')}は現在英語版のみです。日本語版は準備中です。</p>
+      )}
 
       <p className="legal-lead">
         These Terms are an agreement between you and {OPERATOR_NAME} (“Music Match”, “we”, “us”). By creating an account, browsing

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { countryName, flag, loadCities, loadCountries, type Place } from '../data/places';
+import { t } from '../i18n';
 
 /** Native select of every country, by name. */
 export function CountrySelect({ value, onChange }: { value: string; onChange: (code: string) => void }) {
@@ -61,7 +62,7 @@ export function CityPicker({
     <div className="combo">
       <input
         value={text}
-        placeholder={cities.length ? `Search ${cities.length.toLocaleString()} cities…` : 'Loading cities…'}
+        placeholder={cities.length ? t('Search {n} cities…', { n: cities.length.toLocaleString() }) : t('Loading cities…')}
         onChange={(e) => {
           setText(e.target.value);
           setOpen(true);

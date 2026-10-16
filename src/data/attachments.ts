@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../backend/client';
 import type { Attachment, AttachmentKind } from './types';
+import { t } from '../i18n';
 
 export const MAX_FILE_MB = 100;
 export const MAX_FILES = 10;
@@ -29,8 +30,8 @@ export function kindOf(file: File): AttachmentKind | null {
 
 /** Why a file can't be sent, or null if it's fine. */
 export function rejectReason(file: File): string | null {
-  if (!kindOf(file)) return `${file.name}: that file type isn’t supported.`;
-  if (file.size > MAX_FILE_MB * 1024 * 1024) return `${file.name} is over ${MAX_FILE_MB} MB.`;
+  if (!kindOf(file)) return t('{name}: that file type isn’t supported.', { name: file.name });
+  if (file.size > MAX_FILE_MB * 1024 * 1024) return t('{name} is over {mb} MB.', { name: file.name, mb: MAX_FILE_MB });
   return null;
 }
 

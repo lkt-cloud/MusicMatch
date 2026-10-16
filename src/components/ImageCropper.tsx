@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from './Icon';
+import { t } from '../i18n';
 
 type Props = {
   file: File;
@@ -123,7 +124,7 @@ export function ImageCropper({ file, aspect, round = false, outputWidth, title, 
       <div className="modal cropper" role="dialog" aria-modal="true" aria-label={title}>
         <header className="cropper-head">
           <h2>{title}</h2>
-          <button className="icon-btn ghost" onClick={onCancel} aria-label="Cancel">
+          <button className="icon-btn ghost" onClick={onCancel} aria-label={t('Cancel')}>
             <Icon name="close" size={18} />
           </button>
         </header>
@@ -141,7 +142,7 @@ export function ImageCropper({ file, aspect, round = false, outputWidth, title, 
               onPointerCancel={onPointerUp}
               onWheel={(e) => setZoomClamped(zoom * (e.deltaY < 0 ? 1.08 : 1 / 1.08))}
               tabIndex={0}
-              aria-label="Drag to reposition. Arrow keys move, plus and minus zoom."
+              aria-label={t('Drag to reposition. Arrow keys move, plus and minus zoom.')}
               onKeyDown={(e) => {
                 const step = 10;
                 if (e.key === 'ArrowLeft') setOffset(clamp(offset.x + step, offset.y));
@@ -180,7 +181,7 @@ export function ImageCropper({ file, aspect, round = false, outputWidth, title, 
                 onChange={(e) => setZoomClamped(Number(e.target.value))}
                 className="range-input"
                 style={{ ['--pct' as string]: `${((zoom - 1) / (MAX_ZOOM - 1)) * 100}%` }}
-                aria-label="Zoom"
+                aria-label={t('Zoom')}
               />
               <Icon name="plus" size={16} />
             </div>
@@ -189,10 +190,10 @@ export function ImageCropper({ file, aspect, round = false, outputWidth, title, 
 
         <footer className="cropper-foot">
           <button className="btn" onClick={onCancel}>
-            Cancel
+            {t('Cancel')}
           </button>
           <button className="btn primary" onClick={save} disabled={!img || saving}>
-            {saving ? 'Saving…' : 'Apply'}
+            {saving ? t('Saving…') : t('Apply')}
           </button>
         </footer>
       </div>

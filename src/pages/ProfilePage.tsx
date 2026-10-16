@@ -24,6 +24,7 @@ import { SafetyMenu } from '../components/Safety';
 import { BookingEditor, BookingTimes } from '../components/Booking';
 import { FinishSetupCard } from '../components/Onboarding';
 import { ReviewList } from '../components/Reviews';
+import { plural, t } from '../i18n';
 
 const directionsUrl = ([lng, lat]: [number, number]) =>
   `https://www.google.com/maps/dir/?api=1&destination=${lat.toFixed(6)},${lng.toFixed(6)}`;
@@ -40,15 +41,15 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
 
   if (id === meId) return <Navigate to="/me" replace />;
   if (mine && !signedIn)
-    return <SignInPrompt icon="user" title="Your profile" text="Sign in to set up your profile and show up on the map." />;
+    return <SignInPrompt icon="user" title={t('Your profile')} text={t('Sign in to set up your profile and show up on the map.')} />;
   if (!mine && id && blocked.includes(id))
     return (
       <div className="page">
         <section className="card profile-blocked">
-          <h1>You’ve blocked {person(id).name}</h1>
-          <p className="muted">You can’t see their profile, posts or messages, and they can’t message you.</p>
+          <h1>{t('You’ve blocked {name}', { name: person(id).name })}</h1>
+          <p className="muted">{t('You can’t see their profile, posts or messages, and they can’t message you.')}</p>
           <button className="btn primary" onClick={() => unblockUser(id)}>
-            Unblock
+            {t('Unblock')}
           </button>
         </section>
       </div>
@@ -63,7 +64,7 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
   );
   const color = roleInfo(p.role).color;
   const away = mine || !located ? null : milesBetween(me.coords, p.coords);
-  const message = () => requireSignIn(`Sign in to message ${p.name}.`) && navigate(`/messages/${p.id}`);
+  const message = () => requireSignIn(t('Sign in to message {name}.', { name: p.name })) && navigate(`/messages/${p.id}`);
   const openCount = mine ? 0 : (slotsOf(p.id)?.filter((s) => !s.booked).length ?? 0);
 
   return (
@@ -71,7 +72,7 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
       {mine && <FinishSetupCard />}
       <section className="card profile-card">
         {mine && (
-          <Link to="/settings" className="icon-btn profile-gear" aria-label="Settings">
+          <Link to="/settings" className="icon-btn profile-gear" aria-label={t('Settings')}>
             <Icon name="settings" size={20} />
           </Link>
         )}
@@ -90,8 +91,8 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
           <div className="profile-id">
             <h1>{p.name}</h1>
             {flags.isVerifiedStudio(p.id) && (
-              <span className="verified" title="Verified Studio listing">
-                <Icon name="speaker" size={13} /> Verified Studio
+              <span className="verified" title={t('Verified Studio listing')}>
+                <Icon name="speaker" size={13} /> {t('Verified Studio')}
               </span>
             )}
             <div className="muted">
@@ -100,7 +101,7 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
                 <Icon name="pin" size={14} /> {p.city && `${p.city}, `}
                 {flag(p.country)} {countryName(p.country)}
               </span>
-              {away != null && <> · {formatDistance(away)} away</>}
+              {away != null && <> · {t('{distance} away', { distance: formatDistance(away) })}</>}
             </div>
           </div>
           <div className="profile-actions">
@@ -108,30 +109,30 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
               <>
                 {!editing && (
                   <button className="btn primary" onClick={() => setChoosing(true)}>
-                    <Icon name="star" size={16} /> Promote
+                    <Icon name="star" size={16} /> {t('Promote')}
                   </button>
                 )}
                 <button className={`btn${editing ? ' primary' : ''}`} onClick={() => setEditing((e) => !e)}>
-                  {!editing && <Icon name="edit" size={16} />} {editing ? 'Done' : 'Edit profile'}
+                  {!editing && <Icon name="edit" size={16} />} {editing ? t('Done') : t('Edit profile')}
                 </button>
                 {!editing && (
                   <button className="btn" onClick={() => setBooking(true)}>
-                    <Icon name="calendar" size={16} /> Booking times
+                    <Icon name="calendar" size={16} /> {t('Booking times')}
                   </button>
                 )}
                 {!editing && (
                   <Link className="btn" to="/promotions">
-                    Your promotions
+                    {t('Your promotions')}
                   </Link>
                 )}
               </>
             ) : (
               <>
                 <button className="btn primary" onClick={message}>
-                  <Icon name="chat" size={17} /> Message
+                  <Icon name="chat" size={17} /> {t('Message')}
                 </button>
                 <button className="btn" onClick={() => setBooking(true)}>
-                  <Icon name="calendar" size={16} /> Booking times
+                  <Icon name="calendar" size={16} /> {t('Booking times')}
                   {openCount > 0 && <span className="count">{openCount}</span>}
                 </button>
                 <SafetyMenu target={{ userId: p.id, name: p.name, type: 'profile', id: p.id }} />
@@ -149,21 +150,21 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
               <Rates person={p} />
               {!mine && (
                 <div>
-                  <span className="stat-label">Rating</span>
+                  <span className="stat-label">{t('Rating')}</span>
                   <strong className="rating">
                     {p.reviews ? (
                       <>
                         <Icon name="star" size={14} filled /> {p.rating.toFixed(1)} <span className="muted small">({p.reviews})</span>
                       </>
                     ) : (
-                      'New'
+                      t('New')
                     )}
                   </strong>
                 </div>
               )}
               <div>
-                <span className="stat-label">Status</span>
-                <strong className={p.available ? 'available' : 'muted'}>{p.available ? 'Available' : 'Booked up'}</strong>
+                <span className="stat-label">{t('Status')}</span>
+                <strong className={p.available ? 'available' : 'muted'}>{p.available ? t('Available') : t('Booked up')}</strong>
               </div>
             </div>
             <GenreChips ids={p.genres} />
@@ -172,13 +173,13 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
 
             {p.socials.length > 0 ? (
               <div className="profile-block">
-                <h3 className="block-title">Find {mine ? 'me' : p.name.split(' ')[0]} online</h3>
+                <h3 className="block-title">{mine ? t('Find me online') : t('Find {name} online', { name: p.name.split(' ')[0] })}</h3>
                 <SocialLinks socials={p.socials} />
               </div>
             ) : (
               mine && (
                 <p className="hint">
-                  <Icon name="link" size={15} /> Add your Instagram, Spotify, YouTube and more with <b>Edit profile</b>.
+                  <Icon name="link" size={15} /> {t('Add your Instagram, Spotify, YouTube and more with Edit profile.')}
                 </p>
               )
             )}
@@ -188,7 +189,7 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
 
       {featured && (
         <section>
-          <h2 className="section-title">Featured</h2>
+          <h2 className="section-title">{t('Featured')}</h2>
           <div className="card featured">
             <div className="featured-media">
               <AttachmentView file={featured.attachments!.find((a) => a.kind === 'image' || a.kind === 'video')!} />
@@ -198,7 +199,7 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
                 {featured.text && <p>{featured.text}</p>}
                 {!mine && (
                   <button className="btn primary" onClick={message}>
-                    Book {p.name.split(' ')[0]}
+                    {t('Book {name}', { name: p.name.split(' ')[0] })}
                   </button>
                 )}
               </div>
@@ -225,7 +226,7 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
 
       {p.work.length > 0 && (
         <section>
-          <h2 className="section-title">{hasRole(p, 'studio') ? 'The space' : 'Work'}</h2>
+          <h2 className="section-title">{hasRole(p, 'studio') ? t('The space') : t('Work')}</h2>
           <div className="work-grid">
             {p.work.map((w, i) => (
               <div key={w} className="work-tile" style={{ ['--i' as string]: i }}>
@@ -240,14 +241,13 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
 
       {theirPosts.length > 0 && (
         <section>
-          <h2 className="section-title">Posts</h2>
+          <h2 className="section-title">{t('Posts')}</h2>
           <div className="mini-posts">
             {theirPosts.map((x) => (
               <Link to="/feed" key={x.id} className="card mini-post">
                 <p>{x.text}</p>
                 <span className="muted small">
-                  {timeAgo(x.at)} · {x.likes.length} {x.likes.length === 1 ? 'like' : 'likes'} · {x.comments.length}{' '}
-                  {x.comments.length === 1 ? 'reply' : 'replies'}
+                  {timeAgo(x.at)} · {plural(x.likes.length, '{n} like', '{n} likes')} · {plural(x.comments.length, '{n} reply', '{n} replies')}
                 </span>
               </Link>
             ))}
@@ -268,16 +268,16 @@ function LocationInfo({ person: p, me, mine, located }: { person: Creative; me: 
         <div className="profile-block place-card">
           <span className="place-icon"><Icon name="pin" size={20} /></span>
           <div>
-            <span className="stat-label">Studio location</span>
+            <span className="stat-label">{t('Studio location')}</span>
             <strong>{p.address}</strong>
           </div>
           <div className="place-actions">
             <a className="btn" href={directionsUrl(p.coords)} target="_blank" rel="noopener noreferrer">
-              <Icon name="directions" size={16} /> Directions
+              <Icon name="directions" size={16} /> {t('Directions')}
             </a>
             {!mine && (
               <Link className="btn" to={`/?focus=${p.id}`}>
-                <Icon name="map" size={16} /> Map
+                <Icon name="map" size={16} /> {t('Map')}
               </Link>
             )}
           </div>
@@ -287,16 +287,16 @@ function LocationInfo({ person: p, me, mine, located }: { person: Creative; me: 
         <div className="profile-block place-card">
           <span className="place-icon"><Icon name="radius" size={20} /></span>
           <div>
-            <span className="stat-label">Travel radius</span>
+            <span className="stat-label">{t('Travel radius')}</span>
             <strong>
-              Up to {formatRadius(p.travelMiles)} from {p.city}
+              {t('Up to {radius} from {city}', { radius: formatRadius(p.travelMiles), city: p.city })}
             </strong>
-            {!mine && located && reaches(p, me.coords) && <span className="tag-good">Can come to you</span>}
+            {!mine && located && reaches(p, me.coords) && <span className="tag-good">{t('Can come to you')}</span>}
           </div>
           {!mine && !studio && (
             <div className="place-actions">
               <Link className="btn" to={`/?focus=${p.id}`}>
-                <Icon name="map" size={16} /> See on map
+                <Icon name="map" size={16} /> {t('See on map')}
               </Link>
             </div>
           )}
@@ -315,13 +315,13 @@ function EditForm() {
   return (
     <div className="edit-form">
       <fieldset>
-        <legend><Icon name="user" size={16} /> About you</legend>
+        <legend><Icon name="user" size={16} /> {t('About you')}</legend>
         <label>
-          <span>Name</span>
+          <span>{t('Name')}</span>
           <input value={me.name} onChange={(e) => set({ name: e.target.value })} />
         </label>
         <label>
-          <span>Main role</span>
+          <span>{t('Main role')}</span>
           <select value={me.role} onChange={(e) => setRoles(e.target.value as Role, me.alsoRoles)}>
             {ROLES.map((r) => (
               <option key={r.id} value={r.id}>
@@ -331,7 +331,7 @@ function EditForm() {
           </select>
         </label>
         <div className="wide also-field">
-          <span className="field-label">Also work as <span className="muted">— pick any that apply</span></span>
+          <span className="field-label">{t('Also work as')} <span className="muted">{t('— pick any that apply')}</span></span>
           <div className="chips">
             {ROLES.filter((r) => r.id !== me.role).map((r) => {
               const on = me.alsoRoles.includes(r.id);
@@ -351,27 +351,27 @@ function EditForm() {
               );
             })}
           </div>
-          <p className="field-note">Your main role sets your pin on the map. People searching for any of these will find you.</p>
+          <p className="field-note">{t('Your main role sets your pin on the map. People searching for any of these will find you.')}</p>
         </div>
         <RatesEditor />
         <div className="wide also-field">
-          <span className="field-label">Genres <span className="muted">— pick as many as you like</span></span>
+          <span className="field-label">{t('Genres')} <span className="muted">{t('— pick as many as you like')}</span></span>
           <GenrePicker value={me.genres} onChange={(genres) => set({ genres })} />
         </div>
         <label className="wide">
-          <span>Bio</span>
+          <span>{t('Bio')}</span>
           <textarea rows={3} value={me.bio} onChange={(e) => set({ bio: e.target.value })} />
         </label>
       </fieldset>
 
       <fieldset>
-        <legend><Icon name="pin" size={16} /> Where you work</legend>
+        <legend><Icon name="pin" size={16} /> {t('Where you work')}</legend>
         <label>
-          <span>Country</span>
+          <span>{t('Country')}</span>
           <CountrySelect value={me.country} onChange={(country) => set({ country, city: '' })} />
         </label>
         <label>
-          <span>City</span>
+          <span>{t('City')}</span>
           <CityPicker
             key={me.country}
             country={me.country}
@@ -385,7 +385,7 @@ function EditForm() {
       </fieldset>
 
       <fieldset>
-        <legend><Icon name="link" size={16} /> Socials</legend>
+        <legend><Icon name="link" size={16} /> {t('Socials')}</legend>
         <SocialsEditor />
       </fieldset>
     </div>
@@ -398,13 +398,13 @@ function Rates({ person }: { person: Creative }) {
   if (rates.length <= 1)
     return (
       <div>
-        <span className="stat-label">Rate</span>
-        <strong>{rates[0]?.rate || 'Ask me'}</strong>
+        <span className="stat-label">{t('Rate')}</span>
+        <strong>{rates[0]?.rate || t('Ask me')}</strong>
       </div>
     );
   return (
     <div className="stat-rates">
-      <span className="stat-label">Rates</span>
+      <span className="stat-label">{t('Rates')}</span>
       <ul>
         {rates.map(({ role, rate }) => (
           <li key={role}>
@@ -418,11 +418,11 @@ function Rates({ person }: { person: Creative }) {
 }
 
 const RATE_HINTS: Record<Role, string> = {
-  artist: 'e.g. Features from $300',
-  producer: 'e.g. Beats from $150',
-  videographer: 'e.g. Shoots from $400',
-  studio: 'e.g. $45 / hr',
-  engineer: 'e.g. Mix $120 / song',
+  get artist() { return t('e.g. Features from $300'); },
+  get producer() { return t('e.g. Beats from $150'); },
+  get videographer() { return t('e.g. Shoots from $400'); },
+  get studio() { return t('e.g. $45 / hr'); },
+  get engineer() { return t('e.g. Mix $120 / song'); },
 };
 
 /** A rate box per role: just "Rate" for one role, labelled rows when there are more. */
@@ -436,13 +436,13 @@ function RatesEditor() {
   if (roles.length === 1)
     return (
       <label>
-        <span>Rate</span>
+        <span>{t('Rate')}</span>
         <input value={me.rate} maxLength={80} placeholder={RATE_HINTS[me.role]} onChange={(e) => setRate(me.role, e.target.value)} />
       </label>
     );
   return (
     <div className="wide rates-field">
-      <span className="field-label">Rates <span className="muted">— leave any blank to hide it</span></span>
+      <span className="field-label">{t('Rates')} <span className="muted">{t('— leave any blank to hide it')}</span></span>
       {roles.map((role) => (
         <label key={role} className="rate-row">
           <span className="rate-role"><RoleIcon role={role} size={15} /> {roleInfo(role).label}</span>
@@ -475,22 +475,22 @@ export function MapSpot() {
 
   return (
     <div className="wide spot-field">
-      <span className="field-label">Your pin on the map</span>
+      <span className="field-label">{t('Your pin on the map')}</span>
       <div className="segmented">
         <button type="button" className={exact ? '' : 'is-on'} aria-pressed={!exact} onClick={cityOnly}>
-          <Icon name="map" size={15} /> City only
+          <Icon name="map" size={15} /> {t('City only')}
         </button>
         <button type="button" className={exact ? 'is-on' : ''} aria-pressed={exact} onClick={exactSpot} disabled={status === 'locating'}>
-          <Icon name="pin" size={15} /> {status === 'locating' ? 'Finding you…' : exact ? 'Exact spot' : 'Use my exact spot'}
+          <Icon name="pin" size={15} /> {status === 'locating' ? t('Finding you…') : exact ? t('Exact spot') : t('Use my exact spot')}
         </button>
       </div>
       <p className={`field-note${status === 'denied' || status === 'error' ? ' is-bad' : ''}`}>
-        {status === 'denied' && 'Location access is off for this site. Allow it in your browser to pin an exact spot.'}
-        {status === 'error' && 'Couldn’t get your location right now. Try again in a moment.'}
+        {status === 'denied' && t('Location access is off for this site. Allow it in your browser to pin an exact spot.')}
+        {status === 'error' && t('Couldn’t get your location right now. Try again in a moment.')}
         {(status === 'idle' || status === 'locating') &&
           (exact
-            ? 'Your pin is where you were when you set it. Switch back to City only any time.'
-            : `Your pin sits above ${me.city || 'your city'} on the map, with everyone else there. Nobody sees where in the city you are.`)}
+            ? t('Your pin is where you were when you set it. Switch back to City only any time.')
+            : t('Your pin sits above {city} on the map, with everyone else there. Nobody sees where in the city you are.', { city: me.city || t('your city') }))}
       </p>
     </div>
   );
@@ -517,7 +517,7 @@ function StudioAddress() {
   return (
     <div className="wide address-field">
       <label>
-        <span>Studio street address</span>
+        <span>{t('Studio street address')}</span>
         <div className="input-row">
           <input
             value={address}
@@ -526,19 +526,19 @@ function StudioAddress() {
               setStatus('idle');
             }}
             onKeyDown={(e) => e.key === 'Enter' && find()}
-            placeholder="e.g. 123 Main St, Suite 4"
+            placeholder={t('e.g. 123 Main St, Suite 4')}
           />
           <button type="button" className="btn" onClick={find} disabled={status === 'looking' || !address.trim()}>
-            <Icon name="pin" size={16} /> {status === 'looking' ? 'Finding…' : 'Pin it'}
+            <Icon name="pin" size={16} /> {status === 'looking' ? t('Finding…') : t('Pin it')}
           </button>
         </div>
       </label>
       <p className={`field-note${status === 'found' ? ' is-good' : status === 'idle' ? '' : ' is-bad'}`}>
-        {status === 'found' && `Pinned at the exact spot (${me.coords[1].toFixed(4)}, ${me.coords[0].toFixed(4)}). Artists will see it on the map.`}
-        {status === 'idle' && 'Artists will see your studio at this exact spot on the map, with directions.'}
-        {status === 'missing' && 'Couldn’t find that address — check the street and number.'}
-        {status === 'error' && 'The address lookup isn’t reachable right now. Try again in a moment.'}
-        {status === 'looking' && 'Looking it up…'}
+        {status === 'found' && t('Pinned at the exact spot ({lat}, {lng}). Artists will see it on the map.', { lat: me.coords[1].toFixed(4), lng: me.coords[0].toFixed(4) })}
+        {status === 'idle' && t('Artists will see your studio at this exact spot on the map, with directions.')}
+        {status === 'missing' && t('Couldn’t find that address — check the street and number.')}
+        {status === 'error' && t('The address lookup isn’t reachable right now. Try again in a moment.')}
+        {status === 'looking' && t('Looking it up…')}
       </p>
     </div>
   );
@@ -552,8 +552,8 @@ function TravelRadius() {
   return (
     <div className="wide radius-field">
       <div className="radius-top">
-        <span>How far will you travel for a session?</span>
-        <strong>{miles >= 500 ? 'Anywhere' : formatRadius(miles)}</strong>
+        <span>{t('How far will you travel for a session?')}</span>
+        <strong>{miles >= 500 ? t('Anywhere') : formatRadius(miles)}</strong>
       </div>
       <input
         type="range"
@@ -563,7 +563,7 @@ function TravelRadius() {
         value={miles}
         onChange={(e) => updateMe({ travelMiles: Number(e.target.value) })}
         style={{ ['--pct' as string]: `${(miles / 500) * 100}%` }}
-        aria-label="Travel radius in miles"
+        aria-label={t('Travel radius in miles')}
       />
       <div className="chips">
         {RADIUS_PRESETS.map((m) => (
@@ -604,7 +604,7 @@ function SocialsEditor() {
       {drafts.map((d, i) => (
         <div key={i} className="social-row" style={{ ['--brand' as string]: platformInfo(d.platform).color }}>
           <span className="social-row-icon"><PlatformIcon platform={d.platform} size={18} /></span>
-          <select value={d.platform} onChange={(e) => edit(i, { platform: e.target.value as SocialPlatform })} aria-label="Platform">
+          <select value={d.platform} onChange={(e) => edit(i, { platform: e.target.value as SocialPlatform })} aria-label={t('Platform')}>
             {PLATFORMS.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.label}
@@ -614,22 +614,22 @@ function SocialsEditor() {
           <input
             value={d.text}
             className={d.error ? 'is-invalid' : ''}
-            placeholder={platformInfo(d.platform).fromHandle ? '@handle or full link' : 'https://…'}
+            placeholder={platformInfo(d.platform).fromHandle ? t('@handle or full link') : 'https://…'}
             onChange={(e) => edit(i, { text: e.target.value })}
             onBlur={() => {
               const url = normalizeSocialUrl(d.platform, d.text);
               setDrafts((all) => all.map((x, j) => (j === i ? { ...x, text: url ?? x.text, error: !!x.text.trim() && !url } : x)));
             }}
-            aria-label={`${platformInfo(d.platform).label} link`}
+            aria-label={t('{platform} link', { platform: platformInfo(d.platform).label })}
           />
-          <button type="button" className="icon-btn ghost" onClick={() => commit(drafts.filter((_, j) => j !== i))} aria-label="Remove link">
+          <button type="button" className="icon-btn ghost" onClick={() => commit(drafts.filter((_, j) => j !== i))} aria-label={t('Remove link')}>
             <Icon name="trash" size={16} />
           </button>
         </div>
       ))}
-      {drafts.some((d) => d.error) && <p className="field-note is-bad">That doesn’t look like a web link. Use a full https:// link or an @handle.</p>}
+      {drafts.some((d) => d.error) && <p className="field-note is-bad">{t('That doesn’t look like a web link. Use a full https:// link or an @handle.')}</p>}
       <button type="button" className="btn add-link" onClick={() => setDrafts((all) => [...all, { platform: nextPlatform, text: '' }])}>
-        <Icon name="plus" size={16} /> Add a link
+        <Icon name="plus" size={16} /> {t('Add a link')}
       </button>
     </div>
   );

@@ -25,6 +25,7 @@ import { AuthPage } from './pages/AuthPage';
 import { AREA_MILES } from './map/shared';
 import { useSettings } from './settings';
 import { forgetDevice, setAppBadge, syncPush } from './push';
+import { resolveLang, t } from './i18n';
 
 export type MapMode = 'flat' | 'globe';
 
@@ -538,8 +539,8 @@ function DemoProvider({ children }: { children: ReactNode }) {
         const notice: Notice = {
           id: uid(),
           kind: 'booking_confirmed',
-          title: 'Booking confirmed',
-          body: `${name} confirmed your booking.`,
+          title: t('Booking confirmed'),
+          body: t('{name} confirmed your booking.', { name }),
           url: '/bookings',
           actorId: providerId,
           bookingId: booking.id,
@@ -619,18 +620,38 @@ function LiveGate({ children }: { children: ReactNode }) {
   return <LiveProvider userId={session?.user.id ?? null}>{children}</LiveProvider>;
 }
 
-function Splash({ text = 'Loading…' }: { text?: string }) {
+function Splash({ text }: { text?: string }) {
   return (
     <div className="splash">
       <span className="splash-dot" aria-hidden />
-      {text}
+      {text ?? t('Loading…')}
     </div>
   );
 }
 
-const DELETED: Creative = { ...ME, id: 'deleted', name: 'Deleted account', handle: 'deleted', bio: '', city: '' };
+const DELETED: Creative = {
+  ...ME,
+  id: 'deleted',
+  get name() {
+    return t('Deleted account');
+  },
+  handle: 'deleted',
+  bio: '',
+  city: '',
+};
 const GUEST_ID = 'guest';
-const GUEST: Creative = { ...ME, id: GUEST_ID, name: 'Guest', handle: 'guest', city: '', bio: '', genres: [], coords: [0, 90] };
+const GUEST: Creative = {
+  ...ME,
+  id: GUEST_ID,
+  get name() {
+    return t('Guest');
+  },
+  handle: 'guest',
+  city: '',
+  bio: '',
+  genres: [],
+  coords: [0, 90],
+};
 
 const LOADING: Creative = { ...DELETED, id: 'loading', name: '…', handle: '' };
 
@@ -655,7 +676,7 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
   const [isAdmin, setIsAdmin] = useState(false);
   const [suspension, setSuspension] = useState<Store['suspension']>(null);
   const [banner, showBanner, dismissBanner] = useBanner();
-  const { showOnline } = useSettings();
+  const { showOnline, language } = useSettings();
   const [posts, setPosts] = useState<Post[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [promoted, setPromoted] = useState<ActivePromotion[]>([]);
@@ -669,7 +690,7 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
 
   const fail = useCallback((e: unknown) => {
     console.error(e);
-    setError(e instanceof Error ? e.message : 'Something went wrong. Try again.');
+    setError(e instanceof Error ? t(e.message) : t('Something went wrong. Try again.'));
   }, []);
 
   // Adds profiles to what's loaded. Your own profile isn't overwritten, so edits still being saved aren't lost.
@@ -839,6 +860,12 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
     syncPush();
   }, [userId, refreshBookings]);
 
+  // Notifications and reminders are written in your language (saved separately, so an older
+  // database without the column doesn't stop the time zone being saved).
+  useEffect(() => {
+    if (userId) api.saveNotificationPrefs(userId, { language: resolveLang(language) }).catch((e) => console.error(e));
+  }, [userId, language]);
+
   // Live updates: new messages straight away; posts/comments/likes trigger a refresh.
   useEffect(() => {
     let postsTimer: number | undefined;
@@ -857,7 +884,7 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
             showBanner({
               id: m.id,
               title: '',
-              body: m.text || (m.slots?.length ? 'Sent you booking times' : m.attachments?.length ? 'Sent a file' : 'New message'),
+              body: m.text || (m.slots?.length ? t('Sent you booking times') : m.attachments?.length ? t('Sent a file') : t('New message')),
               url: `/messages/${m.from}`,
               actorId: m.from,
             });
@@ -901,7 +928,7 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
   const unreadTotal = visibleConversations.filter((c) => c.unread).length + unreadNotices;
   useEffect(() => setAppBadge(userId ? unreadTotal : 0), [userId, unreadTotal]);
 
-  if (!profiles) return <Splash text={error ? `Couldn’t load: ${error}` : 'Loading…'} />;
+  if (!profiles) return <Splash text={error ? t('Couldn’t load: {error}', { error }) : undefined} />;
   // Guests (and, for a moment, someone who's just signed up) get a placeholder profile.
   const guest = { ...GUEST, coords: deviceCoords ?? GUEST.coords };
   const me = (userId && profiles.get(userId)) || guest;
@@ -953,7 +980,7 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
     loadArea,
     searchPeople,
     async addPost(kind, text, attachments, featured = false) {
-      if (!requireSignIn('Sign in to post in Community.') || !userId) throw new Error('Sign in to post.');
+      if (!requireSignIn(t('Sign in to post in Community.')) || !userId) throw new Error(t('Sign in to post.'));
       const post: Post = {
         id: uid(),
         authorId: userId,
@@ -992,7 +1019,7 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
       );
     },
     toggleLike(postId) {
-      if (!requireSignIn('Sign in to like posts.') || !userId) return;
+      if (!requireSignIn(t('Sign in to like posts.')) || !userId) return;
       const liked = posts.find((p) => p.id === postId)?.likes.includes(userId);
       setPosts((ps) =>
         ps.map((p) => (p.id !== postId ? p : { ...p, likes: liked ? p.likes.filter((l) => l !== userId) : [...p.likes, userId] })),
@@ -1003,7 +1030,7 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
       });
     },
     addComment(postId, text) {
-      if (!requireSignIn('Sign in to reply.') || !userId) return;
+      if (!requireSignIn(t('Sign in to reply.')) || !userId) return;
       const id = uid();
       setPosts((ps) =>
         ps.map((p) => (p.id !== postId ? p : { ...p, comments: [...p.comments, { id, authorId: userId, text, at: Date.now() }] })),
@@ -1014,7 +1041,7 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
       });
     },
     sendMessage(withId, text, attachments, slots) {
-      if (!requireSignIn('Sign in to send messages.') || !userId) return;
+      if (!requireSignIn(t('Sign in to send messages.')) || !userId) return;
       const msg = {
         id: uid(),
         from: userId,
@@ -1043,7 +1070,7 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
       return undefined;
     },
     addSlots(list) {
-      if (!requireSignIn('Sign in to set your booking times.') || !userId) return;
+      if (!requireSignIn(t('Sign in to set your booking times.')) || !userId) return;
       const added: Slot[] = list.map((x) => ({ ...x, id: uid(), ownerId: userId, booked: false }));
       const ids = new Set(added.map((x) => x.id));
       setSlotsBy((m) => new Map(m).set(userId, [...(m.get(userId) ?? []), ...added].sort(bySoonest)));
@@ -1090,7 +1117,7 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
       api.markConversationRead(withId).catch(fail);
     },
     updateMe(patch) {
-      if (!requireSignIn('Sign in to set up your profile.') || !userId) return;
+      if (!requireSignIn(t('Sign in to set up your profile.')) || !userId) return;
       // Typing in the profile form saves after a short pause, not on every keystroke.
       setMe(patch);
       if (patch.coords) loadArea(patch.coords);
@@ -1109,7 +1136,7 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
     refreshPromotions,
     blocked,
     blockUser(other) {
-      if (!requireSignIn('Sign in to block people.') || !userId || other === userId || blocked.includes(other)) return;
+      if (!requireSignIn(t('Sign in to block people.')) || !userId || other === userId || blocked.includes(other)) return;
       setBlocked((b) => [...b, other]);
       api.addBlock(userId, other).catch((e) => {
         setBlocked((b) => b.filter((x) => x !== other));
@@ -1125,13 +1152,13 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
       });
     },
     async report(r) {
-      if (!requireSignIn('Sign in to report something.') || !userId) throw new Error('Sign in to report.');
+      if (!requireSignIn(t('Sign in to report something.')) || !userId) throw new Error(t('Sign in to report.'));
       await api.insertReport({ reporterId: userId, reportedUserId: r.userId, target: r.target, targetId: r.targetId, reason: r.reason, details: r.details });
     },
     bookings,
     // The database finds the provider from the booking time itself.
     async requestBooking(slot, _providerId, service, note, place) {
-      if (!requireSignIn('Sign in to book.') || !userId) throw new Error('Sign in to book.');
+      if (!requireSignIn(t('Sign in to book.')) || !userId) throw new Error(t('Sign in to book.'));
       await api.requestBooking(slot.id, service, note, place);
       refreshBookings();
     },
@@ -1229,7 +1256,7 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
       {error && (
         <div className="toast" role="alert">
           <span>{error}</span>
-          <button className="icon-btn ghost" onClick={() => setError(null)} aria-label="Dismiss">
+          <button className="icon-btn ghost" onClick={() => setError(null)} aria-label={t('Dismiss')}>
             ×
           </button>
         </div>

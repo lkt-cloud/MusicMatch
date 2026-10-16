@@ -1,5 +1,6 @@
 // Country → city lookup. The city list is ~120 KB gzipped, so it's loaded on demand.
 
+import { locale } from '../i18n';
 export type Place = { name: string; coords: [number, number]; region?: string };
 type Raw = Record<string, [string, number, number, string?][]>;
 
@@ -19,10 +20,10 @@ export async function loadCities(country: string): Promise<Place[]> {
   return (raw[country] ?? []).map(([name, lng, lat, region]) => ({ name, coords: [lng, lat], region }));
 }
 
-const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
+/** A country's name in the app's language. */
 export const countryName = (code: string) => {
   try {
-    return regionNames.of(code) ?? code;
+    return new Intl.DisplayNames([locale()], { type: 'region' }).of(code) ?? code;
   } catch {
     return code;
   }

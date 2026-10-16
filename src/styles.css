@@ -1502,3 +1502,4 @@ button, .nav-link, .chip { -webkit-user-select: none; user-select: none; touch-a
 
 /* Sign out: last thing in Settings, on its own. */
 .settings-signout { width: 100%; height: 48px; margin-top: 8px; font-size: 15px; }
+.legal-lang-note { margin: -6px 0 18px; padding: 10px 14px; border-radius: var(--r-sm); background: var(--surface); border: 1px solid var(--line); font-size: 14px; color: var(--text-2); }

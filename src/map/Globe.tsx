@@ -8,6 +8,7 @@ import { drawDetail } from './detail/draw';
 import { useMapGestures, type Point } from './gestures';
 import { getSettings } from '../settings';
 import { COARSE, DETAILED, MAX_ZOOM, STATE_LINES, borderOpacity, landColorAt, radiusCircle, stateOpacity, type EarthProps } from './shared';
+import { t } from '../i18n';
 
 // The globe's `k` is its scale relative to fitting the viewport. Zoom levels shared
 // with the flat map are expressed as `k * PI`, which gives the same on-screen
@@ -334,7 +335,7 @@ export function Globe({ creatives, me, selectedId, onSelect, onViewChange, initi
         style={{ width: size.w, height: size.h }}
         className="globe-canvas"
         role="img"
-        aria-label="Globe of creatives"
+        aria-label={t('Globe of creatives')}
         onClick={() => onSelect(null)}
       />
       <PinLayer

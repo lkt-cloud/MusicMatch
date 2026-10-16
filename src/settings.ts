@@ -16,10 +16,14 @@ export type Settings = {
   reduceMotion: boolean;
   /** Let people see the green "online" dot on your picture while you have Music Match open. */
   showOnline: boolean;
+  /** English or Japanese; "system" follows the phone or browser. */
+  language: 'system' | 'en' | 'ja';
 };
 
 const KEY = 'music-match:settings';
-const DEFAULTS: Settings = { theme: 'dark', units: 'mi', locateOnOpen: true, reduceMotion: false, showOnline: true };
+// Miles in the US (and the UK); kilometres everywhere else, Japan included.
+const defaultUnits = (): Units => (typeof navigator !== 'undefined' && /-(US|GB|LR|MM)$/i.test(navigator.language) ? 'mi' : 'km');
+const DEFAULTS: Settings = { theme: 'dark', units: defaultUnits(), locateOnOpen: true, reduceMotion: false, showOnline: true, language: 'system' };
 
 const read = (): Settings => {
   try {
@@ -70,6 +74,7 @@ export function applyAppearance() {
   const root = document.documentElement;
   root.dataset.theme = theme;
   root.dataset.motion = current.reduceMotion ? 'reduced' : 'full';
+  root.lang = current.language === 'system' ? (navigator.language.toLowerCase().startsWith('ja') ? 'ja' : 'en') : current.language;
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', BAR[theme]);
   // Inside the Music Match app, let the native shell match (status bar, edges).
   (window as { ReactNativeWebView?: { postMessage: (m: string) => void } }).ReactNativeWebView?.postMessage(

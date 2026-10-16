@@ -19,6 +19,7 @@ import { getDeviceLocation } from '../location';
 import { Icon } from '../components/Icon';
 import { SocialLinks } from '../components/SocialLinks';
 import { GenreChips } from '../components/Genres';
+import { plural, t } from '../i18n';
 
 const nearestCity = (p: [number, number]) =>
   CITY_NAMES.reduce((best, c) => (geoDistance(cityCoords(c), p) < geoDistance(cityCoords(best), p) ? c : best));
@@ -113,7 +114,7 @@ export function MapPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, flags, me.city]);
 
-  const place = view.zoom < 5 ? 'Everywhere' : `Around ${nearestCity(view.center)}`;
+  const place = view.zoom < 5 ? t('Everywhere') : t('Around {city}', { city: nearestCity(view.center) });
 
   const q = query.trim().toLowerCase();
   // Search looks through everyone, not just who's loaded: matches are fetched and then listed below.
@@ -177,11 +178,11 @@ export function MapPage() {
               onChange={(e) => setQuery(e.target.value)}
               onFocus={() => setSearchOpen(true)}
               onBlur={() => setTimeout(() => setSearchOpen(false), 150)}
-              placeholder="Search a city, name or genre"
-              aria-label="Search"
+              placeholder={t('Search a city, name or genre')}
+              aria-label={t('Search')}
             />
             {query && (
-              <button className="icon-btn ghost" onClick={() => setQuery('')} aria-label="Clear search">
+              <button className="icon-btn ghost" onClick={() => setQuery('')} aria-label={t('Clear search')}>
                 <Icon name="close" size={16} />
               </button>
             )}
@@ -224,7 +225,7 @@ export function MapPage() {
             onClick={() => setFiltersOpen((o) => !o)}
             aria-expanded={filtersOpen}
           >
-            <Icon name="levels" size={17} /> Filters
+            <Icon name="levels" size={17} /> {t('Filters')}
             {filterCount > 0 && <span className="count">{filterCount}</span>}
           </button>
           </div>
@@ -241,7 +242,7 @@ export function MapPage() {
           />
         )}
 
-        <div className="mode-toggle" role="radiogroup" aria-label="Map style">
+        <div className="mode-toggle" role="radiogroup" aria-label={t('Map style')}>
           {(['globe', 'flat'] as const).map((m) => (
             <button
               key={m}
@@ -251,7 +252,7 @@ export function MapPage() {
               onClick={() => setMapMode(m)}
             >
               <Icon name={m === 'flat' ? 'flat' : 'sphere'} size={17} />
-              {m === 'flat' ? 'Flat' : 'Globe'}
+              {m === 'flat' ? t('Flat') : t('Globe')}
             </button>
           ))}
         </div>
@@ -260,23 +261,23 @@ export function MapPage() {
           {mapMode === 'flat' && (
             <Compass degrees={northDeg} onRotate={(r) => earth.current?.rotateBy?.(r)} onReset={() => earth.current?.resetNorth?.()} />
           )}
-          <button className="icon-btn" onClick={() => earth.current?.zoomBy(2)} aria-label="Zoom in">
+          <button className="icon-btn" onClick={() => earth.current?.zoomBy(2)} aria-label={t('Zoom in')}>
             <Icon name="plus" />
           </button>
-          <button className="icon-btn" onClick={() => earth.current?.zoomBy(0.5)} aria-label="Zoom out">
+          <button className="icon-btn" onClick={() => earth.current?.zoomBy(0.5)} aria-label={t('Zoom out')}>
             <Icon name="minus" />
           </button>
-          <button className="icon-btn" onClick={() => earth.current?.reset()} aria-label="Show whole map">
+          <button className="icon-btn" onClick={() => earth.current?.reset()} aria-label={t('Show whole map')}>
             <Icon name="globe" />
           </button>
-          <button className="icon-btn accent" onClick={locate} aria-label="Near me">
+          <button className="icon-btn accent" onClick={locate} aria-label={t('Near me')}>
             <Icon name="locate" />
           </button>
         </div>
 
         {selected && (
           <div className="preview-card" key={selected.id} style={{ ['--role' as string]: roleInfo(selected.role).color }}>
-            <button className="icon-btn ghost preview-close" onClick={() => setSelectedId(null)} aria-label="Close">
+            <button className="icon-btn ghost preview-close" onClick={() => setSelectedId(null)} aria-label={t('Close')}>
               <Icon name="close" size={16} />
             </button>
             <div className="preview-head">
@@ -285,7 +286,7 @@ export function MapPage() {
                 <h3>{selected.name}</h3>
                 {flags.isVerifiedStudio(selected.id) && (
                   <span className="verified">
-                    <Icon name="speaker" size={12} /> Verified Studio
+                    <Icon name="speaker" size={12} /> {t('Verified Studio')}
                   </span>
                 )}
                 <div className="muted small">
@@ -302,8 +303,8 @@ export function MapPage() {
             )}
             {selected.travelMiles != null && (
               <p className="preview-place small">
-                <Icon name="radius" size={15} /> Travels up to {formatRadius(selected.travelMiles)}
-                {located && reaches(selected, me.coords) && <span className="tag-good">reaches you</span>}
+                <Icon name="radius" size={15} /> {t('Travels up to {radius}', { radius: formatRadius(selected.travelMiles) })}
+                {located && reaches(selected, me.coords) && <span className="tag-good">{t('reaches you')}</span>}
               </p>
             )}
             <div className="preview-meta small">
@@ -313,18 +314,18 @@ export function MapPage() {
                   <Icon name="star" size={13} filled /> {selected.rating.toFixed(1)} <span className="muted">({selected.reviews})</span>
                 </span>
               ) : (
-                <span className="muted">New</span>
+                <span className="muted">{t('New')}</span>
               )}
-              {selected.available ? <span className="available">Available</span> : <span className="muted">Booked up</span>}
+              {selected.available ? <span className="available">{t('Available')}</span> : <span className="muted">{t('Booked up')}</span>}
             </div>
             <GenreChips ids={selected.genres} small />
             <SocialLinks socials={selected.socials} compact />
             <div className="preview-actions">
-              <button className="btn primary" onClick={() => requireSignIn(`Sign in to message ${selected.name}.`) && navigate(`/messages/${selected.id}`)}>
-                <Icon name="chat" size={17} /> Message
+              <button className="btn primary" onClick={() => requireSignIn(t('Sign in to message {name}.', { name: selected.name })) && navigate(`/messages/${selected.id}`)}>
+                <Icon name="chat" size={17} /> {t('Message')}
               </button>
               <Link className="btn" to={`/u/${selected.id}`}>
-                View profile
+                {t('View profile')}
               </Link>
             </div>
           </div>
@@ -338,7 +339,7 @@ export function MapPage() {
               {place}
             </strong>
             <span className="muted small">
-              {featuredTop.length + listed.length} {featuredTop.length + listed.length === 1 ? 'creative' : 'creatives'} in view
+              {plural(featuredTop.length + listed.length, '{n} creative in view', '{n} creatives in view')}
             </span>
           </span>
           <span className="panel-toggle">
@@ -348,9 +349,11 @@ export function MapPage() {
         <div className="panel-list">
           {featuredTop.length + listed.length === 0 && (
             <p className="empty">
-              {areaCenter ? `No one here. The map shows people within ${AREA_MILES} miles; search a city to look elsewhere.` : 'No one here. Zoom out or loosen your filters.'}
+              {areaCenter
+                ? t('No one here. The map shows people within {radius}; search a city to look elsewhere.', { radius: formatRadius(AREA_MILES) })
+                : t('No one here. Zoom out or loosen your filters.')}
               {filterCount > 0 && (
-                <button className="btn block" onClick={() => setFilters(NO_FILTERS)}>Clear filters</button>
+                <button className="btn block" onClick={() => setFilters(NO_FILTERS)}>{t('Clear filters')}</button>
               )}
             </p>
           )}

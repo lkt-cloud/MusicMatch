@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ACCEPT_FILES, ACCEPT_MEDIA, MAX_FILES, formatBytes, kindOf, rejectReason } from '../data/attachments';
 import type { AttachmentKind } from '../data/types';
 import { Icon, type IconName } from './Icon';
+import { t } from '../i18n';
 
 export const KIND_ICON: Record<AttachmentKind, IconName> = { image: 'image', video: 'camera', audio: 'note', file: 'file' };
 
@@ -24,7 +25,7 @@ export function usePendingFiles() {
     const bad = files.map(rejectReason).filter((r): r is string => !!r);
     const ok = files.filter((f) => !rejectReason(f));
     const room = MAX_FILES - pending.length;
-    if (ok.length > room) bad.push(`You can attach up to ${MAX_FILES} files at once.`);
+    if (ok.length > room) bad.push(t('You can attach up to {n} files at once.', { n: MAX_FILES }));
     setErrors(bad);
     setPending((p) => [
       ...p,

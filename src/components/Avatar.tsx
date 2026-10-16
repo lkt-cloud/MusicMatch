@@ -2,6 +2,7 @@ import { roleInfo } from '../data/roles';
 import { useSharedFileUrl } from '../data/attachments';
 import type { Creative } from '../data/types';
 import { RoleIcon } from './Icon';
+import { t } from '../i18n';
 
 export function initials(name: string) {
   const parts = name.replace(/[^\p{L}\p{N} ]/gu, '').split(' ').filter(Boolean);
@@ -25,7 +26,7 @@ export function Avatar({ person, size = 40, badge = false, online }: { person: C
         <span
           className={`avatar-status${online ? ' is-online' : ''}`}
           style={{ width: Math.max(10, size * 0.27), height: Math.max(10, size * 0.27) }}
-          title={online ? 'Online' : 'Offline'}
+          title={online ? t('Online') : t('Offline')}
         />
       )}
       {badge && online === undefined && (

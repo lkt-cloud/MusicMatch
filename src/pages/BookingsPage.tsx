@@ -6,16 +6,17 @@ import { Avatar } from '../components/Avatar';
 import { Icon, type IconName } from '../components/Icon';
 import { SignInPrompt } from '../components/SignInPrompt';
 import { NotifyCard } from '../components/Notify';
-import { BookingEditor, SERVICE_LABEL, directionsUrl, formatDay, formatTimes, googleCalendarUrl } from '../components/Booking';
+import { BookingEditor, directionsUrl, serviceName, formatDay, formatTimes, googleCalendarUrl } from '../components/Booking';
 import { calendarFileUrl } from '../backend/api';
 import { timeAgo } from '../components/time';
 import { ReviewModal, Stars } from '../components/Reviews';
+import { t } from '../i18n';
 
 /** Booking requests to answer, what's coming up, and the notifications about them. */
 export function BookingsPage() {
   const { signedIn } = useStore();
   if (!signedIn)
-    return <SignInPrompt icon="calendar" title="Bookings" text="Sign in to book sessions, answer requests and get reminders." />;
+    return <SignInPrompt icon="calendar" title={t('Bookings')} text={t('Sign in to book sessions, answer requests and get reminders.')} />;
   return <BookingsContent />;
 }
 
@@ -43,16 +44,16 @@ function BookingsContent() {
   return (
     <div className="page bookings">
       <header className="page-head bookings-head">
-        <h1>Bookings</h1>
+        <h1>{t('Bookings')}</h1>
         <button className="btn" onClick={() => setEditing(true)}>
-          <Icon name="calendar" size={16} /> Your booking times
+          <Icon name="calendar" size={16} /> {t('Your booking times')}
         </button>
       </header>
 
-      <NotifyCard why="Hear about booking requests and confirmations straight away, and get reminders before every session." />
+      <NotifyCard why={t('Hear about booking requests and confirmations straight away, and get reminders before every session.')} />
 
       {requests.length > 0 && (
-        <Section title="Requests for you" count={requests.length}>
+        <Section title={t('Requests for you')} count={requests.length}>
           {requests.map((b) => (
             <BookingCard key={b.id} booking={b} />
           ))}
@@ -60,7 +61,7 @@ function BookingsContent() {
       )}
 
       {upcoming.length > 0 && (
-        <Section title="Upcoming">
+        <Section title={t('Upcoming')}>
           {upcoming.map((b) => (
             <BookingCard key={b.id} booking={b} />
           ))}
@@ -68,7 +69,7 @@ function BookingsContent() {
       )}
 
       {waiting.length > 0 && (
-        <Section title="Waiting for an answer">
+        <Section title={t('Waiting for an answer')}>
           {waiting.map((b) => (
             <BookingCard key={b.id} booking={b} />
           ))}
@@ -76,7 +77,7 @@ function BookingsContent() {
       )}
 
       {past.length > 0 && (
-        <Section title="Past sessions">
+        <Section title={t('Past sessions')}>
           {past.map((b) => (
             <PastCard key={b.id} booking={b} />
           ))}
@@ -87,23 +88,23 @@ function BookingsContent() {
         <div className="card bookings-empty">
           <Icon name="calendar" size={28} />
           <p>
-            <strong>No bookings yet.</strong> To book someone, open their profile and tap <b>Booking times</b>. To get booked, add your
-            own times.
+            <strong>{t('No bookings yet.')}</strong>{' '}
+            {t('To book someone, open their profile and tap Booking times. To get booked, add your own times.')}
           </p>
           <div className="bookings-empty-actions">
             <Link className="btn" to="/">
-              Find people on the map
+              {t('Find people on the map')}
             </Link>
             <button className="btn primary" onClick={() => setEditing(true)}>
-              Add your booking times
+              {t('Add your booking times')}
             </button>
           </div>
         </div>
       )}
 
-      <Section title="Notifications">
+      <Section title={t('Notifications')}>
         {notices.length === 0 ? (
-          <p className="muted small bookings-quiet">Booking requests, confirmations and reminders will show up here.</p>
+          <p className="muted small bookings-quiet">{t('Booking requests, confirmations and reminders will show up here.')}</p>
         ) : (
           <ul className="notice-list">
             {notices.map((n) => (
@@ -151,7 +152,7 @@ function BookingCard({ booking: b }: { booking: Booking }) {
     try {
       await fn();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong. Try again.');
+      setError(e instanceof Error ? t(e.message) : t('Something went wrong. Try again.'));
     } finally {
       setBusy(false);
       setConfirming(false);
@@ -165,15 +166,15 @@ function BookingCard({ booking: b }: { booking: Booking }) {
           <Avatar person={other} size={44} />
         </Link>
         <div className="booking-card-who">
-          <strong>{SERVICE_LABEL[b.service]}</strong>
+          <strong>{serviceName(b.service)}</strong>
           <span className="muted small">
-            {providing ? 'Booked by' : 'With'}{' '}
+            {providing ? t('Booked by') : t('With')}{' '}
             <Link to={`/u/${other.id}`} className="strong">
               {other.name}
             </Link>
           </span>
         </div>
-        <span className={`booking-status is-${b.status}`}>{STATUS[b.status]}</span>
+        <span className={`booking-status is-${b.status}`}>{t(STATUS[b.status])}</span>
       </div>
       <div className="booking-card-when">
         <Icon name="calendar" size={16} />
@@ -188,30 +189,30 @@ function BookingCard({ booking: b }: { booking: Booking }) {
 
       <div className="booking-card-actions">
         <Link className="btn" to={`/messages/${other.id}`}>
-          <Icon name="chat" size={16} /> Message
+          <Icon name="chat" size={16} /> {t('Message')}
         </Link>
         {confirming ? (
           <>
-            <span className="muted small">{b.status === 'pending' && !providing ? 'Cancel this request?' : 'Cancel this booking?'}</span>
+            <span className="muted small">{b.status === 'pending' && !providing ? t('Cancel this request?') : t('Cancel this booking?')}</span>
             <button className="btn" onClick={() => setConfirming(false)} disabled={busy}>
-              Keep
+              {t('Keep')}
             </button>
             <button className="btn danger" onClick={() => run(() => cancelBooking(b.id))} disabled={busy}>
-              Cancel it
+              {t('Cancel it')}
             </button>
           </>
         ) : b.status === 'pending' && providing ? (
           <>
             <button className="btn" onClick={() => run(() => respondBooking(b.id, false))} disabled={busy}>
-              Decline
+              {t('Decline')}
             </button>
             <button className="btn primary" onClick={() => run(() => respondBooking(b.id, true))} disabled={busy}>
-              Accept
+              {t('Accept')}
             </button>
           </>
         ) : (
           <button className="btn danger-outline" onClick={() => setConfirming(true)} disabled={busy}>
-            {b.status === 'pending' ? 'Cancel request' : 'Cancel'}
+            {b.status === 'pending' ? t('Cancel request') : t('Cancel')}
           </button>
         )}
       </div>
@@ -235,7 +236,7 @@ function PlaceRow({ booking: b }: { booking: Booking }) {
       await setBookingPlace(b.id, text.trim());
       setEditing(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Couldn’t save that. Try again.');
+      setError(e instanceof Error ? t(e.message) : t('Couldn’t save that. Try again.'));
     } finally {
       setBusy(false);
     }
@@ -251,14 +252,14 @@ function PlaceRow({ booking: b }: { booking: Booking }) {
           autoFocus
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && save()}
-          placeholder="Studio, venue or address"
-          aria-label="Where"
+          placeholder={t('Studio, venue or address')}
+          aria-label={t('Where?')}
         />
         <button className="btn" onClick={() => setEditing(false)} disabled={busy}>
-          Cancel
+          {t('Cancel')}
         </button>
         <button className="btn primary" onClick={save} disabled={busy}>
-          Save
+          {t('Save')}
         </button>
         {error && <p className="field-note is-bad">{error}</p>}
       </div>
@@ -271,11 +272,11 @@ function PlaceRow({ booking: b }: { booking: Booking }) {
         <>
           <span className="booking-place-text">{b.place}</span>
           <a className="link" href={directionsUrl(b.place, b.placeCoords)} target="_blank" rel="noopener">
-            Directions
+            {t('Directions')}
           </a>
         </>
       ) : (
-        <span className="muted">No place set yet</span>
+        <span className="muted">{t('No place set yet')}</span>
       )}
       {canEdit && (
         <button
@@ -285,7 +286,7 @@ function PlaceRow({ booking: b }: { booking: Booking }) {
             setEditing(true);
           }}
         >
-          {b.place ? 'Change' : 'Add place'}
+          {b.place ? t('Change') : t('Add place')}
         </button>
       )}
     </div>
@@ -301,17 +302,17 @@ function AddToCalendar({ booking: b }: { booking: Booking }) {
   return (
     <div className="add-calendar">
       <button className="btn" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <Icon name="calendar" size={16} /> Add to calendar
+        <Icon name="calendar" size={16} /> {t('Add to calendar')}
       </button>
       {open && (
         <div className="add-calendar-options">
           {live && b.calendarToken && (
             <a className="btn" href={calendarFileUrl(b)} onClick={() => setOpen(false)}>
-              Apple Calendar / Outlook
+              {t('Apple Calendar / Outlook')}
             </a>
           )}
           <a className="btn" href={googleCalendarUrl(b, provider, client)} target="_blank" rel="noopener" onClick={() => setOpen(false)}>
-            Google Calendar
+            {t('Google Calendar')}
           </a>
         </div>
       )}
@@ -334,20 +335,20 @@ function PastCard({ booking: b }: { booking: Booking }) {
           <Avatar person={other} size={40} />
         </Link>
         <div className="booking-card-who">
-          <strong>{SERVICE_LABEL[b.service]}</strong>
+          <strong>{serviceName(b.service)}</strong>
           <span className="muted small">
-            {client ? 'With' : 'Booked by'} {other.name} · {formatDay(b.start)}
+            {client ? t('With') : t('Booked by')} {other.name} · {formatDay(b.start)}
           </span>
         </div>
         {client &&
           (review ? (
-            <button className="past-review" onClick={() => setReviewing(true)} aria-label="Edit your review">
+            <button className="past-review" onClick={() => setReviewing(true)} aria-label={t('Edit your review')}>
               <Stars value={review.rating} size={13} />
-              <span className="muted small">Edit</span>
+              <span className="muted small">{t('Edit')}</span>
             </button>
           ) : (
             <button className="btn primary" onClick={() => setReviewing(true)}>
-              <Icon name="star" size={15} /> Leave a review
+              <Icon name="star" size={15} /> {t('Leave a review')}
             </button>
           ))}
       </div>

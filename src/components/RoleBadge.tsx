@@ -1,5 +1,6 @@
 import { roleInfo } from '../data/roles';
 import type { Creative, Role } from '../data/types';
+import { t } from '../i18n';
 
 export function RoleBadge({ role }: { role: Role }) {
   const info = roleInfo(role);
@@ -21,7 +22,7 @@ export function RoleLine({ person, compact = false }: { person: Pick<Creative, '
       <RoleBadge role={person.role} />
       {also.length > 0 &&
         (compact ? (
-          <span className="role-more" title={`Also: ${also.map((r) => roleInfo(r).label).join(', ')}`}>+{also.length}</span>
+          <span className="role-more" title={t('Also: {roles}', { roles: also.map((r) => roleInfo(r).label).join(', ') })}>+{also.length}</span>
         ) : (
           <span className="role-also"> + {also.map((r) => roleInfo(r).label).join(', ')}</span>
         ))}

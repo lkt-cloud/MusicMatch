@@ -11,6 +11,7 @@ import { DetailLabels } from './detail/DetailLabels';
 import { LINE_STYLE, ROAD_STYLE, roadsAt, tilePaths } from './detail/draw';
 import type { Counties } from './detail/counties';
 import { COARSE, DETAILED, LAND_STOPS, MAX_ZOOM, STATE_LINES, borderOpacity, radiusCircle, stateOpacity, type EarthProps } from './shared';
+import { t } from '../i18n';
 
 // Night is many stacked, faint circles around the point opposite the sun. Their radii step
 // 0.7° apart across a ~28° band centred near the true terminator (90°), so the darkness fades
@@ -307,7 +308,7 @@ export function FlatEarth({ creatives, me, selectedId, onSelect, onViewChange, o
 
   return (
     <div className="earth" ref={wrapRef}>
-      <svg width={size.w} height={size.h} role="img" aria-label="Map of creatives" onClick={() => onSelect(null)}>
+      <svg width={size.w} height={size.h} role="img" aria-label={t('Map of creatives')} onClick={() => onSelect(null)}>
         <defs>
           {/* In map units (not per shape), so tile water matches the ocean around it. */}
           <radialGradient id="ocean" gradientUnits="userSpaceOnUse" cx={SIZE / 2} cy={SIZE / 2} r={RADIUS}>

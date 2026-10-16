@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { keepSignedIn, setKeepSignedIn, supabase } from '../backend/client';
 import { LogoMark } from '../components/LogoMark';
 import { Icon } from '../components/Icon';
+import { t } from '../i18n';
 
 /**
  * Email + password sign in / sign up (live mode only). Opens over the page when a guest
@@ -29,12 +30,12 @@ export function AuthPage({ reason, onClose }: { reason?: string; onClose?: () =>
         password,
         options: { data: { name: name.trim() }, emailRedirectTo: window.location.origin },
       });
-      if (error) setError(error.message);
+      if (error) setError(t(error.message));
       // With email confirmation on, there's no session until they click the link.
-      else if (!data.session) setNotice('Check your email for a link to confirm your account, then sign in.');
+      else if (!data.session) setNotice(t('Check your email for a link to confirm your account, then sign in.'));
     } else {
       const { error } = await supabase!.auth.signInWithPassword({ email, password });
-      if (error) setError(error.message === 'Invalid login credentials' ? 'Wrong email or password.' : error.message);
+      if (error) setError(error.message === 'Invalid login credentials' ? t('Wrong email or password.') : t(error.message));
     }
     setBusy(false);
   };
@@ -48,19 +49,19 @@ export function AuthPage({ reason, onClose }: { reason?: string; onClose?: () =>
   }, [onClose]);
 
   const resetPassword = async () => {
-    if (!email) return setError('Type your email first.');
+    if (!email) return setError(t('Type your email first.'));
     const { error } = await supabase!.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
-    if (error) setError(error.message);
-    else setNotice('If that email has an account, a reset link is on its way.');
+    if (error) setError(t(error.message));
+    else setNotice(t('If that email has an account, a reset link is on its way.'));
   };
 
   return (
     <div className={`auth${onClose ? ' is-modal' : ''}`} onMouseDown={(e) => onClose && e.target === e.currentTarget && onClose()}>
       {/* method/action and the autocomplete names let iPhone, Android and browser password
           managers offer to save the login and fill it in next time. */}
-      <form className="auth-card" onSubmit={submit} method="post" action="#" role={onClose ? 'dialog' : undefined} aria-modal={onClose ? true : undefined} aria-label="Sign in">
+      <form className="auth-card" onSubmit={submit} method="post" action="#" role={onClose ? 'dialog' : undefined} aria-modal={onClose ? true : undefined} aria-label={t('Sign in')}>
         {onClose && (
-          <button type="button" className="icon-btn ghost auth-close" onClick={onClose} aria-label="Close">
+          <button type="button" className="icon-btn ghost auth-close" onClick={onClose} aria-label={t('Close')}>
             <Icon name="close" size={18} />
           </button>
         )}
@@ -69,17 +70,17 @@ export function AuthPage({ reason, onClose }: { reason?: string; onClose?: () =>
           <h1>Music Match</h1>
         </div>
         <p className="auth-sub">
-          {mode === 'signin' ? reason ?? 'Sign in to find creatives near you.' : 'Create your account. It takes a minute.'}
+          {mode === 'signin' ? reason ?? t('Sign in to find creatives near you.') : t('Create your account. It takes a minute.')}
         </p>
 
         {mode === 'signup' && (
           <label>
-            <span>Name or artist name</span>
+            <span>{t('Name or artist name')}</span>
             <input name="name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} autoComplete="name" />
           </label>
         )}
         <label>
-          <span>Email</span>
+          <span>{t('Email')}</span>
           <input
             type="email"
             name="email"
@@ -94,7 +95,7 @@ export function AuthPage({ reason, onClose }: { reason?: string; onClose?: () =>
           />
         </label>
         <label>
-          <span>Password</span>
+          <span>{t('Password')}</span>
           <input
             type="password"
             name="password"
@@ -109,27 +110,27 @@ export function AuthPage({ reason, onClose }: { reason?: string; onClose?: () =>
 
         <label className="check auth-remember">
           <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-          <span>Keep me signed in on this device</span>
+          <span>{t('Keep me signed in on this device')}</span>
         </label>
 
         {error && <p className="field-note is-bad">{error}</p>}
         {notice && <p className="field-note is-good">{notice}</p>}
 
         <button className="btn primary block" disabled={busy}>
-          {busy ? 'One moment…' : mode === 'signin' ? 'Sign in' : 'Create account'}
+          {busy ? t('One moment…') : mode === 'signin' ? t('Sign in') : t('Create account')}
         </button>
 
         {mode === 'signup' && (
           <p className="auth-legal">
-            By creating an account you agree to the{' '}
+            {t('By creating an account you agree to the')}{' '}
             <a href="/terms" target="_blank" rel="noopener">
-              Terms of Service
+              {t('Terms of Service')}
             </a>{' '}
-            and{' '}
+            {t('and')}{' '}
             <a href="/privacy" target="_blank" rel="noopener">
-              Privacy Policy
+              {t('Privacy Policy')}
             </a>
-            .
+            {t('.')}
           </p>
         )}
 
@@ -137,15 +138,15 @@ export function AuthPage({ reason, onClose }: { reason?: string; onClose?: () =>
           {mode === 'signin' ? (
             <>
               <button type="button" className="link" onClick={() => setMode('signup')}>
-                New here? Create an account
+                {t('New here? Create an account')}
               </button>
               <button type="button" className="link muted-link" onClick={resetPassword}>
-                Forgot password
+                {t('Forgot password')}
               </button>
             </>
           ) : (
             <button type="button" className="link" onClick={() => setMode('signin')}>
-              Already have an account? Sign in
+              {t('Already have an account? Sign in')}
             </button>
           )}
         </div>

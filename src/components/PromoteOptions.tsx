@@ -6,6 +6,7 @@ import { LAUNCH_LABEL, usePricing } from '../data/pricing';
 import { hasRole } from '../data/roles';
 import { useStore } from '../store';
 import { Icon } from './Icon';
+import { lang, t } from '../i18n';
 
 /**
  * Paid promotion choices. With `postId` it offers boosting that post; otherwise the
@@ -38,17 +39,17 @@ export function PromoteOptions({ postId, onClose, onCreatePromo }: { postId?: st
     try {
       await startCheckout(type, postId); // leaves the page for Stripe
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Couldn’t start checkout.');
+      setError(e instanceof Error ? t(e.message) : t('Couldn’t start checkout.'));
       setBusy(null);
     }
   };
 
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal promote-options" role="dialog" aria-modal="true" aria-label="Promote">
+      <div className="modal promote-options" role="dialog" aria-modal="true" aria-label={t('Promote')}>
         <header className="cropper-head">
-          <h2>{postId ? 'Boost this post' : 'Promote yourself'}</h2>
-          <button className="icon-btn ghost" onClick={onClose} aria-label="Close">
+          <h2>{postId ? t('Boost this post') : t('Promote yourself')}</h2>
+          <button className="icon-btn ghost" onClick={onClose} aria-label={t('Close')}>
             <Icon name="close" size={18} />
           </button>
         </header>
@@ -61,17 +62,17 @@ export function PromoteOptions({ postId, onClose, onCreatePromo }: { postId?: st
               <div key={type} className={`price-card${on ? ' is-on' : ''}`}>
                 <div className="price-top">
                   <strong>{p.name}</strong>
-                  <span className="launch">{LAUNCH_LABEL}</span>
+                  <span className="launch">{t(LAUNCH_LABEL)}</span>
                 </div>
                 <div className="price-amount">
                   {p.price} <span>{p.per}</span>
                 </div>
                 <p>{p.blurb}</p>
                 {on ? (
-                  <span className="tag-good">Running now</span>
+                  <span className="tag-good">{t('Running now')}</span>
                 ) : (
                   <button className="btn primary" onClick={() => buy(type)} disabled={!live || busy !== null}>
-                    {busy === type ? 'Opening checkout…' : `Continue · ${p.price}`}
+                    {busy === type ? t('Opening checkout…') : t('Continue · {price}', { price: p.price })}
                   </button>
                 )}
               </div>
@@ -82,12 +83,12 @@ export function PromoteOptions({ postId, onClose, onCreatePromo }: { postId?: st
             <button className="price-card is-link" onClick={onCreatePromo}>
               <div className="price-top">
                 <strong>{PRICING.boost_post.name}</strong>
-                <span className="launch">{LAUNCH_LABEL}</span>
+                <span className="launch">{t(LAUNCH_LABEL)}</span>
               </div>
               <div className="price-amount">
                 {PRICING.boost_post.price} <span>{PRICING.boost_post.per}</span>
               </div>
-              <p>Post a photo or video of your work and boost it to the top of Community.</p>
+              <p>{t('Post a photo or video of your work and boost it to the top of Community.')}</p>
             </button>
           )}
         </div>
@@ -95,11 +96,15 @@ export function PromoteOptions({ postId, onClose, onCreatePromo }: { postId?: st
         {error && <p className="field-note is-bad">{error}</p>}
         {!live && (
           <p className="field-note">
-            Payments switch on once the site is connected to Supabase and Stripe (see SETUP.md). This is a preview.
+            {t('Payments switch on once the site is connected to Supabase and Stripe (see SETUP.md). This is a preview.')}
           </p>
         )}
         <p className="field-note">
-          Secure payment by Stripe. Cancel any time from <Link to="/promotions" onClick={onClose}>Your promotions</Link>.
+          {t('Secure payment by Stripe. Cancel any time from')}{' '}
+          <Link to="/promotions" onClick={onClose}>
+            {t('Your promotions')}
+          </Link>
+          {lang() === 'ja' ? 'から。' : '.'}
         </p>
       </div>
     </div>

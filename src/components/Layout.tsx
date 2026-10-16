@@ -5,6 +5,7 @@ import { Icon, type IconName } from './Icon';
 import { LogoMark } from './LogoMark';
 import { Avatar } from './Avatar';
 import { Onboarding } from './Onboarding';
+import { t } from '../i18n';
 import { SuspendedNotice } from '../pages/AdminPage';
 
 const NAV: { to: string; label: string; icon: IconName }[] = [
@@ -45,7 +46,7 @@ export function Layout() {
 
   return (
     <div className="shell">
-      <nav className="nav" aria-label="Main">
+      <nav className="nav" aria-label={t('Main')}>
         <Logo />
         <div className="nav-links">
           {NAV.map((n) => (
@@ -55,7 +56,7 @@ export function Layout() {
                 {badges[n.to] > 0 && <b className="nav-badge">{badges[n.to]}</b>}
               </span>
               {/* Guests see "Sign in" where Profile would be; the page explains why. */}
-              <span className="nav-label">{n.to === '/me' && !signedIn ? 'Sign in' : n.label}</span>
+              <span className="nav-label">{t(n.to === '/me' && !signedIn ? 'Sign in' : n.label)}</span>
             </NavLink>
           ))}
         </div>
@@ -91,7 +92,7 @@ function InAppBanner() {
           <span>{banner.body}</span>
         </span>
       </button>
-      <button className="icon-btn ghost" onClick={dismissBanner} aria-label="Dismiss">
+      <button className="icon-btn ghost" onClick={dismissBanner} aria-label={t('Dismiss')}>
         <Icon name="close" size={16} />
       </button>
     </div>

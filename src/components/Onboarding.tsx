@@ -7,6 +7,7 @@ import { Avatar } from './Avatar';
 import { Icon, RoleIcon } from './Icon';
 import { CityPicker, CountrySelect } from './LocationFields';
 import { AvatarEditor } from './ProfileMedia';
+import { t } from '../i18n';
 
 // First-time setup, straight after signing up: what you do, where you're based and a photo.
 // Without a city nobody shows up on the map, so this is shown until there is one. It can be
@@ -57,8 +58,8 @@ export function FinishSetupCard() {
         <Icon name="pin" size={20} />
       </span>
       <div className="notify-text">
-        <strong>You’re not on the map yet</strong>
-        <span>Add what you do and your city so people near you can find you.</span>
+        <strong>{t('You’re not on the map yet')}</strong>
+        <span>{t('Add what you do and your city so people near you can find you.')}</span>
       </div>
       <button
         className="btn primary"
@@ -67,7 +68,7 @@ export function FinishSetupCard() {
           window.dispatchEvent(new Event('mm-setup'));
         }}
       >
-        Finish setup
+        {t('Finish setup')}
       </button>
     </div>
   );
@@ -113,17 +114,17 @@ export function Onboarding() {
 
   const steps = [
     {
-      title: 'Welcome to Music Match',
-      sub: 'Let’s set up your profile so people can find you. It takes a minute.',
+      title: t('Welcome to Music Match'),
+      sub: t('Let’s set up your profile so people can find you. It takes a minute.'),
       ready: !!me.name.trim() && !!picked,
       body: (
         <>
           <label className="setup-field">
-            <span className="field-label">Your name or artist name</span>
-            <input value={me.name} maxLength={80} onChange={(e) => updateMe({ name: e.target.value })} placeholder="e.g. Ama K" autoFocus />
+            <span className="field-label">{t('Your name or artist name')}</span>
+            <input value={me.name} maxLength={80} onChange={(e) => updateMe({ name: e.target.value })} placeholder={t('e.g. Ama K')} autoFocus />
           </label>
           <div className="setup-field">
-            <span className="field-label">What do you do?</span>
+            <span className="field-label">{t('What do you do?')}</span>
             <div className="setup-roles">
               {ROLES.map((r) => (
                 <button
@@ -146,7 +147,7 @@ export function Onboarding() {
           {picked && (
             <div className="setup-field">
               <span className="field-label">
-                Anything else? <span className="muted">Optional</span>
+                {t('Anything else?')} <span className="muted">{t('Optional')}</span>
               </span>
               <div className="chips">
                 {ROLES.filter((r) => r.id !== picked).map((r) => {
@@ -173,17 +174,17 @@ export function Onboarding() {
       ),
     },
     {
-      title: 'Where are you based?',
-      sub: 'You’ll show up on the map in your city. Only the city is shown, not where you live.',
+      title: t('Where are you based?'),
+      sub: t('You’ll show up on the map in your city. Only the city is shown, not where you live.'),
       ready: !!me.city,
       body: (
         <>
           <label className="setup-field">
-            <span className="field-label">Country</span>
+            <span className="field-label">{t('Country')}</span>
             <CountrySelect value={me.country} onChange={(country) => updateMe({ country, city: '' })} />
           </label>
           <label className="setup-field">
-            <span className="field-label">City</span>
+            <span className="field-label">{t('City')}</span>
             <CityPicker
               key={me.country}
               country={me.country}
@@ -193,15 +194,15 @@ export function Onboarding() {
           </label>
           {me.city && (
             <p className="field-note is-good">
-              <Icon name="pin" size={14} /> You’ll appear around {me.city}.
+              <Icon name="pin" size={14} /> {t('You’ll appear around {city}.', { city: me.city })}
             </p>
           )}
         </>
       ),
     },
     {
-      title: 'Add a profile photo',
-      sub: 'People are much more likely to message someone with a photo. You can change it any time.',
+      title: t('Add a profile photo'),
+      sub: t('People are much more likely to message someone with a photo. You can change it any time.'),
       ready: true,
       body: (
         <div className="setup-photo">
@@ -220,13 +221,13 @@ export function Onboarding() {
     <div className="modal-backdrop setup-backdrop">
       <div className="modal setup" role="dialog" aria-modal="true" aria-label={current.title}>
         <div className="setup-top">
-          <div className="setup-dots" aria-label={`Step ${step + 1} of ${steps.length}`}>
+          <div className="setup-dots" aria-label={t('Step {n} of {total}', { n: step + 1, total: steps.length })}>
             {steps.map((_, i) => (
               <span key={i} className={i <= step ? 'is-on' : ''} />
             ))}
           </div>
           <button className="link muted-link" onClick={() => close(false)}>
-            Skip for now
+            {t('Skip for now')}
           </button>
         </div>
         <div className="setup-head">
@@ -237,7 +238,7 @@ export function Onboarding() {
         <div className="cropper-foot">
           {step > 0 && (
             <button className="btn" onClick={() => setStep(step - 1)}>
-              Back
+              {t('Back')}
             </button>
           )}
           <button
@@ -245,7 +246,7 @@ export function Onboarding() {
             disabled={!current.ready}
             onClick={() => (last ? close(true) : setStep(step + 1))}
           >
-            {last ? (me.avatarId ? 'Done' : 'Finish without a photo') : 'Next'}
+            {last ? (me.avatarId ? t('Done') : t('Finish without a photo')) : t('Next')}
           </button>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { Avatar } from './Avatar';
 import { RoleLine } from './RoleBadge';
 import { Icon } from './Icon';
 import { usePromotionFlags } from '../backend/promotions';
+import { t } from '../i18n';
 
 // Links to the profile, or runs onClick instead when given (e.g. focus on the map).
 export function CreativeRow({
@@ -30,8 +31,8 @@ export function CreativeRow({
         <strong>
           {person.name}
           {verified && (
-            <span className="verified is-small" title="Verified Studio">
-              <Icon name="speaker" size={11} /> Verified
+            <span className="verified is-small" title={t('Verified Studio')}>
+              <Icon name="speaker" size={11} /> {t('Verified')}
             </span>
           )}
         </strong>
@@ -41,13 +42,13 @@ export function CreativeRow({
       </span>
       <span className="creative-row-side small">
         {promoted ? (
-          <span className="promoted-tag is-inline">Promoted</span>
+          <span className="promoted-tag is-inline">{t('Promoted')}</span>
         ) : person.reviews ? (
           <span className="rating">
             <Icon name="star" size={13} filled /> {person.rating.toFixed(1)}
           </span>
         ) : (
-          <span className="muted">New</span>
+          <span className="muted">{t('New')}</span>
         )}
         {meta && <span className="muted">{meta}</span>}
       </span>

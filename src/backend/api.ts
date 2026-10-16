@@ -610,7 +610,7 @@ export async function fetchNotificationPrefs(userId: string): Promise<Notificati
   return data;
 }
 
-export async function saveNotificationPrefs(userId: string, patch: Partial<NotificationPrefs> & { timezone?: string }) {
+export async function saveNotificationPrefs(userId: string, patch: Partial<NotificationPrefs> & { timezone?: string; language?: 'en' | 'ja' }) {
   const { error } = await db().from('notification_settings').upsert({ user_id: userId, ...patch });
   if (error) throw error;
 }

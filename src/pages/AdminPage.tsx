@@ -5,8 +5,9 @@ import * as api from '../backend/api';
 import type { AdminReport } from '../backend/api';
 import { Avatar } from '../components/Avatar';
 import { Icon } from '../components/Icon';
-import { REASON_LABEL } from '../components/Safety';
+import { reasonLabel } from '../components/Safety';
 import { timeAgo } from '../components/time';
+import { locale, plural, t } from '../i18n';
 
 // Moderation, for admins only: reports to look at, what was reported, and one-tap actions.
 // Apple expects reports on user content to be acted on within 24 hours.
@@ -14,14 +15,24 @@ import { timeAgo } from '../components/time';
 type Tab = 'open' | 'closed' | 'suspended';
 
 const DAY = 86_400_000;
-const untilText = (until: number | null) => (until ? `until ${new Date(until).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}` : 'for good');
+const untilText = (until: number | null) =>
+  until ? t('until {date}', { date: new Date(until).toLocaleDateString(locale(), { month: 'short', day: 'numeric', year: 'numeric' }) }) : t('for good');
+
+/** The action taken, as the database records it, in the current language. */
+const actionLabel = (action: string) => {
+  const days = /^Suspended for (\d+) days$/.exec(action);
+  if (days) return t('Suspended for {n} days', { n: days[1] });
+  const removed = /^Removed the (\w+)$/.exec(action);
+  if (removed) return t('Removed the {thing}', { thing: t(removed[1]) });
+  return t(action);
+};
 
 export function AdminPage() {
   const { isAdmin, live } = useStore();
   if (!live || !isAdmin)
     return (
       <div className="page">
-        <p className="empty">This page is only for Music Match admins.</p>
+        <p className="empty">{t('This page is only for Music Match admins.')}</p>
       </div>
     );
   return <Moderation />;
@@ -42,7 +53,7 @@ function Moderation() {
         setClosed(c);
         setSuspended(s);
       },
-      (e) => setError(e instanceof Error ? e.message : 'Couldn’t load reports.'),
+      (e) => setError(e instanceof Error ? t(e.message) : t('Couldn’t load reports.')),
     );
   }, []);
   useEffect(load, [load]);
@@ -52,27 +63,26 @@ function Moderation() {
   return (
     <div className="page admin">
       <header className="page-head admin-head">
-        <h1>Moderation</h1>
+        <h1>{t('Moderation')}</h1>
         <button className="btn" onClick={load}>
-          Refresh
+          {t('Refresh')}
         </button>
       </header>
       <p className="muted admin-lead">
-        Act on reports within 24 hours. Removing content or suspending someone tells the people who reported it that action was
-        taken; dismissing doesn’t tell anyone.
+        {t('Act on reports within 24 hours. Removing content or suspending someone tells the people who reported it that action was taken; dismissing doesn’t tell anyone.')}
       </p>
       {late > 0 && (
         <p className="admin-late">
-          <Icon name="warning" size={16} /> {late} {late === 1 ? 'report has' : 'reports have'} been waiting over 12 hours.
+          <Icon name="warning" size={16} /> {plural(late, '{n} report has been waiting over 12 hours.', '{n} reports have been waiting over 12 hours.')}
         </p>
       )}
 
       <div className="segmented admin-tabs" role="tablist">
         {(
           [
-            ['open', `Open${open?.length ? ` (${open.length})` : ''}`],
-            ['closed', 'Closed'],
-            ['suspended', `Suspended${suspended?.length ? ` (${suspended.length})` : ''}`],
+            ['open', `${t('Open reports')}${open?.length ? ` (${open.length})` : ''}`],
+            ['closed', t('Closed')],
+            ['suspended', `${t('Suspended')}${suspended?.length ? ` (${suspended.length})` : ''}`],
           ] as [Tab, string][]
         ).map(([id, label]) => (
           <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'is-on' : ''} onClick={() => setTab(id)}>
@@ -85,9 +95,9 @@ function Moderation() {
 
       {tab === 'open' &&
         (open === null ? (
-          <p className="muted">Loading…</p>
+          <p className="muted">{t('Loading…')}</p>
         ) : open.length === 0 ? (
-          <p className="empty">Nothing to review. 🎉</p>
+          <p className="empty">{t('Nothing to review.')} 🎉</p>
         ) : (
           <div className="admin-list">
             {open.map((r) => (
@@ -98,9 +108,9 @@ function Moderation() {
 
       {tab === 'closed' &&
         (closed === null ? (
-          <p className="muted">Loading…</p>
+          <p className="muted">{t('Loading…')}</p>
         ) : closed.length === 0 ? (
-          <p className="empty">No closed reports yet.</p>
+          <p className="empty">{t('No closed reports yet.')}</p>
         ) : (
           <div className="admin-list">
             {closed.map((r) => (
@@ -111,9 +121,9 @@ function Moderation() {
 
       {tab === 'suspended' &&
         (suspended === null ? (
-          <p className="muted">Loading…</p>
+          <p className="muted">{t('Loading…')}</p>
         ) : suspended.length === 0 ? (
-          <p className="empty">No suspended accounts.</p>
+          <p className="empty">{t('No suspended accounts.')}</p>
         ) : (
           <div className="admin-list">
             {suspended.map((s) => (
@@ -131,7 +141,7 @@ function ReportCard({ report: r, onDone }: { report: AdminReport; onDone: () => 
   const reported = r.reportedUserId ? person(r.reportedUserId) : null;
   const [busy, setBusy] = useState(false);
   const [suspending, setSuspending] = useState(false);
-  const [reason, setReason] = useState(REASON_LABEL[r.reason]);
+  const [reason, setReason] = useState(reasonLabel(r.reason));
   const [error, setError] = useState<string | null>(null);
   const isOpen = r.status === 'open';
   const age = Date.now() - r.at;
@@ -143,7 +153,7 @@ function ReportCard({ report: r, onDone }: { report: AdminReport; onDone: () => 
       await fn();
       onDone();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong.');
+      setError(e instanceof Error ? t(e.message) : t('Something went wrong. Try again.'));
       setBusy(false);
     }
   };
@@ -152,11 +162,11 @@ function ReportCard({ report: r, onDone }: { report: AdminReport; onDone: () => 
     <article className={`card admin-report${isOpen && age > 12 * 60 * 60 * 1000 ? ' is-late' : ''}`}>
       <div className="admin-report-top">
         <span className="admin-reason">
-          <Icon name="flag" size={14} /> {REASON_LABEL[r.reason]}
+          <Icon name="flag" size={14} /> {reasonLabel(r.reason)}
         </span>
         <span className="muted small">
-          {r.targetType} · {timeAgo(r.at)}
-          {r.timesReported > 1 && <b className="admin-times"> · reported {r.timesReported}×</b>}
+          {t(r.targetType)} · {timeAgo(r.at)}
+          {r.timesReported > 1 && <b className="admin-times"> · {t('reported {n}×', { n: r.timesReported })}</b>}
         </span>
       </div>
 
@@ -165,67 +175,67 @@ function ReportCard({ report: r, onDone }: { report: AdminReport; onDone: () => 
           <Avatar person={reported} size={36} />
           <span>
             <strong>{reported.name}</strong>
-            <span className="muted small">{r.suspended ? 'Suspended' : `@${reported.handle}`}</span>
+            <span className="muted small">{r.suspended ? t('Suspended') : `@${reported.handle}`}</span>
           </span>
         </Link>
       )}
 
       <blockquote className="admin-content">
         {r.content === null ? (
-          <span className="muted">Already deleted.</span>
+          <span className="muted">{t('Already deleted.')}</span>
         ) : (
           <>
             {r.content.rating ? `${'★'.repeat(r.content.rating)} ` : ''}
-            {r.content.text || <span className="muted">(no text)</span>}
-            {r.content.files ? <span className="muted small"> · {r.content.files} file{r.content.files > 1 ? 's' : ''}</span> : null}
+            {r.content.text || <span className="muted">{t('(no text)')}</span>}
+            {r.content.files ? <span className="muted small"> · {plural(r.content.files, '{n} file', '{n} files')}</span> : null}
           </>
         )}
       </blockquote>
 
       {r.details && (
         <p className="small">
-          <span className="muted">{reporter.name} says:</span> “{r.details}”
+          <span className="muted">{t('{name} says:', { name: reporter.name })}</span> “{r.details}”
         </p>
       )}
-      {!r.details && <p className="small muted">Reported by {reporter.name}</p>}
+      {!r.details && <p className="small muted">{t('Reported by {name}', { name: reporter.name })}</p>}
 
       {error && <p className="field-note is-bad">{error}</p>}
 
       {!isOpen ? (
         <p className="small admin-done">
-          <Icon name={r.status === 'dismissed' ? 'close' : 'flag'} size={13} /> {r.action ?? r.status}
+          <Icon name={r.status === 'dismissed' ? 'close' : 'flag'} size={13} /> {r.action ? actionLabel(r.action) : t(r.status)}
           {r.resolvedAt && <span className="muted"> · {timeAgo(r.resolvedAt)}</span>}
         </p>
       ) : suspending && reported ? (
         <div className="admin-suspend">
-          <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} placeholder="Reason (they’ll see this)" aria-label="Reason" />
+          <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} placeholder={t('Reason (they’ll see this)')} aria-label={t('Reason')} />
           <div className="admin-actions">
             <button className="btn" onClick={() => setSuspending(false)} disabled={busy}>
-              Back
+              {t('Back')}
             </button>
             {[7, 30].map((d) => (
               <button key={d} className="btn danger-outline" onClick={() => run(() => api.adminSuspend(reported.id, d, reason))} disabled={busy}>
-                {d} days
+                {t('{n} days', { n: d })}
               </button>
             ))}
             <button className="btn danger" onClick={() => run(() => api.adminSuspend(reported.id, null, reason))} disabled={busy}>
-              For good
+              {t('For good')}
             </button>
           </div>
         </div>
       ) : (
         <div className="admin-actions">
           <button className="btn" onClick={() => run(() => api.adminDismiss(r.id))} disabled={busy}>
-            Dismiss
+            {t('Dismiss report')}
           </button>
           {r.targetType !== 'profile' && r.content !== null && (
             <button className="btn danger-outline" onClick={() => run(() => api.adminRemove(r.id))} disabled={busy}>
-              <Icon name="trash" size={15} /> Remove {r.targetType}
+              <Icon name="trash" size={15} /> {t('Remove {thing}', { thing: t(r.targetType) })}
             </button>
           )}
           {reported && !r.suspended && (
             <button className="btn danger" onClick={() => setSuspending(true)} disabled={busy}>
-              <Icon name="block" size={15} /> Suspend
+              <Icon name="block" size={15} /> {t('Suspend')}
             </button>
           )}
         </div>
@@ -244,8 +254,8 @@ function SuspendedRow({ userId, until, reason, onDone }: { userId: string; until
       <span className="admin-suspended-text">
         <strong>{who.name}</strong>
         <span className="muted small">
-          Suspended {untilText(until)}
-          {until && until - Date.now() < DAY && ' (ends soon)'}
+          {t('Suspended {until}', { until: untilText(until) })}
+          {until && until - Date.now() < DAY && ` ${t('(ends soon)')}`}
           {reason && ` · ${reason}`}
         </span>
       </span>
@@ -261,7 +271,7 @@ function SuspendedRow({ userId, until, reason, onDone }: { userId: string; until
           }
         }}
       >
-        Unsuspend
+        {t('Unsuspend')}
       </button>
     </div>
   );
@@ -275,9 +285,10 @@ export function SuspendedNotice() {
     <div className="suspended-notice" role="alert">
       <Icon name="block" size={18} />
       <span>
-        <strong>Your account is suspended {untilText(suspension.until)}.</strong> You can still look around, but you can’t post,
-        message, book or review.{suspension.reason ? ` Reason: ${suspension.reason}.` : ''} See the{' '}
-        <Link to="/terms">Terms</Link>.
+        <strong>{t('Your account is suspended {until}.', { until: untilText(suspension.until) })}</strong>{' '}
+        {t('You can still look around, but you can’t post, message, book or review.')}
+        {suspension.reason ? ' ' + t('Reason: {reason}.', { reason: suspension.reason }) : ''}{' '}
+        <Link to="/terms">{t('Terms of Service')}</Link>
       </span>
     </div>
   );

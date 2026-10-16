@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
 import type { ReportReason, ReportTarget } from '../backend/api';
 import { Icon, type IconName } from './Icon';
+import { t } from '../i18n';
 
 // Report and block, as App Store guideline 1.2 requires for apps where people post and message.
 // <SafetyMenu> is the "…" button; it opens the report form or the block confirmation.
@@ -16,7 +17,9 @@ const REASONS: { id: ReportReason; label: string; hint: string }[] = [
   { id: 'other', label: 'Something else', hint: '' },
 ];
 
-export const REASON_LABEL = Object.fromEntries(REASONS.map((r) => [r.id, r.label])) as Record<ReportReason, string>;
+const REASON_EN = Object.fromEntries(REASONS.map((r) => [r.id, r.label])) as Record<ReportReason, string>;
+/** A report reason's name in the current language. */
+export const reasonLabel = (r: ReportReason) => t(REASON_EN[r]);
 
 const NOUN: Record<ReportTarget, string> = { post: 'post', comment: 'comment', profile: 'profile', message: 'message', review: 'review' };
 
@@ -65,7 +68,7 @@ export function SafetyMenu({
 
   const choose = (m: 'report' | 'block') => {
     setMenu(false);
-    if (requireSignIn(m === 'report' ? 'Sign in to report something.' : 'Sign in to block people.')) setModal(m);
+    if (requireSignIn(m === 'report' ? t('Sign in to report something.') : t('Sign in to block people.'))) setModal(m);
   };
 
   return (
@@ -74,7 +77,7 @@ export function SafetyMenu({
         type="button"
         className="icon-btn ghost"
         onClick={() => setMenu((o) => !o)}
-        aria-label={label ?? 'Report or block'}
+        aria-label={label ?? t('Report or block')}
         aria-expanded={menu}
         aria-haspopup="menu"
       >
@@ -96,10 +99,10 @@ export function SafetyMenu({
             </button>
           ))}
           <button role="menuitem" onClick={() => choose('report')}>
-            <Icon name="flag" size={16} /> Report {NOUN[target.type]}
+            <Icon name="flag" size={16} /> {t('Report {thing}', { thing: t(NOUN[target.type]) })}
           </button>
           <button role="menuitem" className="menu-danger" onClick={() => choose('block')}>
-            <Icon name="block" size={16} /> Block {target.name}
+            <Icon name="block" size={16} /> {t('Block {name}', { name: target.name })}
           </button>
         </div>
       )}
@@ -133,47 +136,47 @@ export function ReportModal({ target, onClose }: { target: SafetyTarget; onClose
       await report({ userId: target.userId, target: target.type, targetId: target.id, reason, details: details.trim() });
       setState('sent');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Couldn’t send that. Try again.');
+      setError(e instanceof Error ? t(e.message) : t('Couldn’t send that. Try again.'));
       setState('form');
     }
   };
 
   return (
     <div className="modal-backdrop" onClick={state === 'sent' ? finish : onClose}>
-      <div className="modal safety-modal" role="dialog" aria-modal="true" aria-label={`Report ${NOUN[target.type]}`} onClick={(e) => e.stopPropagation()}>
+      <div className="modal safety-modal" role="dialog" aria-modal="true" aria-label={t('Report {thing}', { thing: t(NOUN[target.type]) })} onClick={(e) => e.stopPropagation()}>
         {state === 'sent' ? (
           <>
             <div className="cropper-head">
-              <h2>Thanks for telling us</h2>
+              <h2>{t('Thanks for telling us')}</h2>
             </div>
             <p className="promote-sub">
-              We’ll look at this {NOUN[target.type]} and remove it, and the account if needed, if it breaks the Terms.
-              {alsoBlock && !alreadyBlocked ? ` ${target.name} will be blocked, so you won’t see their content.` : ''}
+              {t('We’ll look at this {thing} and remove it, and the account if needed, if it breaks the Terms.', { thing: t(NOUN[target.type]) })}
+              {alsoBlock && !alreadyBlocked ? ' ' + t('{name} will be blocked, so you won’t see their content.', { name: target.name }) : ''}
             </p>
             <div className="cropper-foot">
               <button className="btn primary" onClick={finish}>
-                Done
+                {t('Done')}
               </button>
             </div>
           </>
         ) : (
           <>
             <div className="cropper-head">
-              <h2>Report this {NOUN[target.type]}</h2>
-              <button className="icon-btn ghost" onClick={onClose} aria-label="Close">
+              <h2>{t('Report this {thing}', { thing: t(NOUN[target.type]) })}</h2>
+              <button className="icon-btn ghost" onClick={onClose} aria-label={t('Close')}>
                 <Icon name="close" size={20} />
               </button>
             </div>
             <p className="promote-sub">
-              About {target.name}. We only look at it when you report it, and they won’t be told it was you.
+              {t('About {name}. We only look at it when you report it, and they won’t be told it was you.', { name: target.name })}
             </p>
-            <div className="report-reasons" role="radiogroup" aria-label="Reason">
+            <div className="report-reasons" role="radiogroup" aria-label={t('Reason')}>
               {REASONS.map((r) => (
                 <label key={r.id} className={`report-reason${reason === r.id ? ' is-on' : ''}`}>
                   <input type="radio" name="reason" checked={reason === r.id} onChange={() => setReason(r.id)} />
                   <span>
-                    <strong>{r.label}</strong>
-                    {r.hint && <small>{r.hint}</small>}
+                    <strong>{t(r.label)}</strong>
+                    {r.hint && <small>{t(r.hint)}</small>}
                   </span>
                 </label>
               ))}
@@ -184,22 +187,22 @@ export function ReportModal({ target, onClose }: { target: SafetyTarget; onClose
               maxLength={1000}
               value={details}
               onChange={(e) => setDetails(e.target.value)}
-              placeholder="Anything else we should know? (optional)"
-              aria-label="Details"
+              placeholder={t('Anything else we should know? (optional)')}
+              aria-label={t('Details')}
             />
             {!alreadyBlocked && (
               <label className="check">
                 <input type="checkbox" checked={alsoBlock} onChange={(e) => setAlsoBlock(e.target.checked)} />
-                <span>Also block {target.name}</span>
+                <span>{t('Also block {name}', { name: target.name })}</span>
               </label>
             )}
             {error && <p className="field-note is-bad">{error}</p>}
             <div className="cropper-foot">
               <button className="btn" onClick={onClose}>
-                Cancel
+                {t('Cancel')}
               </button>
               <button className="btn primary" onClick={send} disabled={!reason || state === 'sending'}>
-                {state === 'sending' ? 'Sending…' : 'Send report'}
+                {state === 'sending' ? t('Sending…') : t('Send report')}
               </button>
             </div>
           </>
@@ -215,18 +218,18 @@ export function BlockModal({ userId, name, onClose, onBlocked }: { userId: strin
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal safety-modal" role="alertdialog" aria-modal="true" aria-label={`Block ${name}`} onClick={(e) => e.stopPropagation()}>
+      <div className="modal safety-modal" role="alertdialog" aria-modal="true" aria-label={t('Block {name}', { name })} onClick={(e) => e.stopPropagation()}>
         <div className="cropper-head">
-          <h2>Block {name}?</h2>
+          <h2>{t('Block {name}?', { name })}</h2>
         </div>
         <ul className="safety-list">
-          <li>You won’t see their posts, comments or profile, and they’ll be gone from the map for you.</li>
-          <li>Neither of you can send the other messages.</li>
-          <li>They aren’t told. You can unblock them any time in Settings.</li>
+          <li>{t('You won’t see their posts, comments or profile, and they’ll be gone from the map for you.')}</li>
+          <li>{t('Neither of you can send the other messages.')}</li>
+          <li>{t('They aren’t told. You can unblock them any time in Settings.')}</li>
         </ul>
         <div className="cropper-foot">
           <button className="btn" onClick={onClose}>
-            Cancel
+            {t('Cancel')}
           </button>
           <button
             className="btn danger"
@@ -236,7 +239,7 @@ export function BlockModal({ userId, name, onClose, onBlocked }: { userId: strin
               onBlocked?.();
             }}
           >
-            Block
+            {t('Block')}
           </button>
         </div>
       </div>

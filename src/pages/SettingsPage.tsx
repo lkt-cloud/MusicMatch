@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useStore } from '../store';
-import { setSetting, useSettings, type ThemeChoice, type Units } from '../settings';
+import { setSetting, useSettings, type Settings, type ThemeChoice, type Units } from '../settings';
 import { keepSignedIn, setKeepSignedIn } from '../backend/client';
 import { changeEmail, changePassword, currentEmail, deleteAccount } from '../backend/api';
 import { hasRole } from '../data/roles';
@@ -9,6 +9,7 @@ import { Icon, type IconName } from '../components/Icon';
 import { Avatar } from '../components/Avatar';
 import { DevicePush } from '../components/Notify';
 import { MapSpot } from './ProfilePage';
+import { t } from '../i18n';
 
 const VERSION = '1.0';
 
@@ -34,8 +35,22 @@ export function SettingsPage() {
   return (
     <div className="page settings">
       <header className="page-head">
-        <h1>Settings</h1>
+        <h1>{t('Settings')}</h1>
       </header>
+
+      <Section icon="globe" title="Language">
+        <Row label="Language" note="Match device follows your phone or browser.">
+          <Segmented<Settings['language']>
+            value={settings.language}
+            onChange={(v) => setSetting('language', v)}
+            options={[
+              ['system', 'Match device'],
+              ['en', 'English'],
+              ['ja', '日本語'],
+            ]}
+          />
+        </Row>
+      </Section>
 
       <Section icon="sun" title="Appearance">
         <Row label="Theme" note="Dark is the default. Match device follows your phone or computer.">
@@ -107,7 +122,7 @@ export function SettingsPage() {
           {hasRole(me, 'studio') ? (
             <Row label="Your pin on the map" note="Studios show at their address. Change it in Edit profile.">
               <Link className="btn" to="/me">
-                Edit profile
+                {t('Edit profile')}
               </Link>
             </Row>
           ) : (
@@ -119,24 +134,24 @@ export function SettingsPage() {
       )}
 
       <Section icon="user" title="Account">
-        {!live && <p className="settings-empty">This copy of Music Match runs in demo mode, so accounts are switched off.</p>}
+        {!live && <p className="settings-empty">{t('This copy of Music Match runs in demo mode, so accounts are switched off.')}</p>}
         {live && !signedIn && (
           <div className="settings-empty">
-            <p>Sign in to change your email, password and profile.</p>
-            <button className="btn primary" onClick={() => requireSignIn('Sign in to manage your account.')}>
-              Sign in or create an account
+            <p>{t('Sign in to change your email, password and profile.')}</p>
+            <button className="btn primary" onClick={() => requireSignIn(t('Sign in to manage your account.'))}>
+              {t('Sign in or create an account')}
             </button>
           </div>
         )}
         {account && <AccountRows />}
         <Row label="Profile" note="Name, roles, rates, genres, location and links.">
           <Link className="btn" to="/me">
-            {signedIn ? 'Edit profile' : 'Open'}
+            {signedIn ? t('Edit profile') : t('Open page')}
           </Link>
         </Row>
         <Row label="Promotions" note="Boosted posts, featured profile and studio listing.">
           <Link className="btn" to="/promotions">
-            Manage
+            {t('Manage')}
           </Link>
         </Row>
       </Section>
@@ -144,7 +159,7 @@ export function SettingsPage() {
       {account && (
         <Section icon="block" title="Blocked accounts">
           {blocked.length === 0 ? (
-            <p className="settings-note">You haven’t blocked anyone. To block someone, tap the ⋯ on their post, profile or messages.</p>
+            <p className="settings-note">{t('You haven’t blocked anyone. To block someone, tap the ⋯ on their post, profile or messages.')}</p>
           ) : (
             <div className="blocked-list">
               {blocked.map((id) => (
@@ -152,7 +167,7 @@ export function SettingsPage() {
                   <Avatar person={person(id)} size={36} />
                   <span className="grow strong">{person(id).name}</span>
                   <button className="btn" onClick={() => unblockUser(id)}>
-                    Unblock
+                    {t('Unblock')}
                   </button>
                 </div>
               ))}
@@ -165,7 +180,7 @@ export function SettingsPage() {
         <Section icon="flag" title="Admin">
           <Row label="Moderation" note="Reports from users, removing content and suspending accounts. Act on reports within 24 hours.">
             <Link className="btn" to="/admin">
-              Open
+              {t('Open page')}
             </Link>
           </Row>
         </Section>
@@ -174,17 +189,17 @@ export function SettingsPage() {
       <Section icon="doc" title="About">
         <Row label="Terms of Service">
           <Link className="btn" to="/terms">
-            Read
+            {t('Read')}
           </Link>
         </Row>
         <Row label="Privacy Policy">
           <Link className="btn" to="/privacy">
-            Read
+            {t('Read')}
           </Link>
         </Row>
         <Row label="特定商取引法に基づく表記" note="Legal notice for sellers (Japan).">
           <Link className="btn" to="/legal">
-            Read
+            {t('Read')}
           </Link>
         </Row>
         <Row label="Version">
@@ -196,7 +211,7 @@ export function SettingsPage() {
 
       {signOut && (
         <button className="btn danger block settings-signout" onClick={signOut}>
-          <Icon name="signout" size={18} /> Sign out
+          <Icon name="signout" size={18} /> {t('Sign out')}
         </button>
       )}
     </div>
@@ -216,13 +231,13 @@ function AccountRows() {
     <>
       <Row label="Email" note={email ?? '…'}>
         <button className="btn" onClick={() => setOpen(open === 'email' ? null : 'email')}>
-          {open === 'email' ? 'Cancel' : 'Change'}
+          {open === 'email' ? t('Cancel') : t('Change')}
         </button>
       </Row>
       {open === 'email' && <EmailForm onDone={() => setOpen(null)} />}
       <Row label="Password">
         <button className="btn" onClick={() => setOpen(open === 'password' ? null : 'password')}>
-          {open === 'password' ? 'Cancel' : 'Change'}
+          {open === 'password' ? t('Cancel') : t('Change')}
         </button>
       </Row>
       {open === 'password' && <PasswordForm onDone={() => setOpen(null)} />}
@@ -253,22 +268,22 @@ function EmailForm({ onDone }: { onDone: () => void }) {
           await changeEmail(email.trim());
           setState('sent');
         } catch (err) {
-          setState(err instanceof Error ? err.message : 'Couldn’t change it. Try again.');
+          setState(err instanceof Error ? t(err.message) : t('Couldn’t change it. Try again.'));
         }
       }}
     >
       {state === 'sent' ? (
         <p className="field-note is-good">
-          Check {email} for a confirmation link. Your email changes once you click it.{' '}
+          {t('Check {email} for a confirmation link. Your email changes once you click it.', { email })}{' '}
           <button type="button" className="link" onClick={onDone}>
-            Done
+            {t('Done')}
           </button>
         </p>
       ) : (
         <>
-          <input type="email" name="email" autoComplete="email" placeholder="New email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <input type="email" name="email" autoComplete="email" placeholder={t('New email')} value={email} onChange={(e) => setEmail(e.target.value)} required />
           <button className="btn primary" disabled={state === 'saving'}>
-            {state === 'saving' ? 'Sending…' : 'Send confirmation'}
+            {state === 'saving' ? t('Sending…') : t('Send confirmation')}
           </button>
           {state !== 'idle' && state !== 'saving' && <p className="field-note is-bad">{state}</p>}
         </>
@@ -294,18 +309,18 @@ function PasswordForm({ onDone }: { onDone: () => void }) {
           setState('saved');
           window.setTimeout(onDone, 1500);
         } catch (err) {
-          setState(err instanceof Error ? err.message : 'Couldn’t change it. Try again.');
+          setState(err instanceof Error ? t(err.message) : t('Couldn’t change it. Try again.'));
         }
       }}
     >
       {/* Lets password managers update the saved login. */}
-      <input type="password" name="new-password" autoComplete="new-password" placeholder="New password (8+ characters)" minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} required />
-      <input type="password" name="confirm-password" autoComplete="new-password" placeholder="Type it again" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
+      <input type="password" name="new-password" autoComplete="new-password" placeholder={t('New password (8+ characters)')} minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} required />
+      <input type="password" name="confirm-password" autoComplete="new-password" placeholder={t('Type it again')} value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
       <button className="btn primary" disabled={state === 'saving' || mismatch}>
-        {state === 'saving' ? 'Saving…' : 'Save password'}
+        {state === 'saving' ? t('Saving…') : t('Save password')}
       </button>
-      {mismatch && <p className="field-note is-bad">The passwords don’t match.</p>}
-      {state === 'saved' && <p className="field-note is-good">Password changed.</p>}
+      {mismatch && <p className="field-note is-bad">{t('The passwords don’t match.')}</p>}
+      {state === 'saved' && <p className="field-note is-good">{t('Password changed.')}</p>}
       {!['idle', 'saving', 'saved'].includes(state) && <p className="field-note is-bad">{state}</p>}
     </form>
   );
@@ -319,30 +334,28 @@ function DeleteAccount() {
   return (
     <section className="card settings-section is-danger">
       <h2 className="settings-title">
-        <Icon name="warning" size={18} /> Delete account
+        <Icon name="warning" size={18} /> {t('Delete account')}
       </h2>
       {!open ? (
         <Row label="Delete your account" note="Removes your profile, posts, messages and files for good.">
           <button className="btn danger-outline" onClick={() => setOpen(true)}>
-            Delete…
+            {t('Delete…')}
           </button>
         </Row>
       ) : (
         <div className="settings-row is-stacked">
           <p>
-            This permanently deletes your profile, posts, comments, likes, messages and uploaded files. Any running
-            promotion subscriptions are cancelled first, so you won’t be charged again. Past payments aren’t refunded. This
-            can’t be undone.
+            {t('This permanently deletes your profile, posts, comments, likes, messages and uploaded files. Any running promotion subscriptions are cancelled first, so you won’t be charged again. Past payments aren’t refunded. This can’t be undone.')}
           </p>
           <label className="settings-confirm">
             <span>
-              Type <b>DELETE</b> to confirm
+              {t('Type DELETE to confirm')}
             </span>
             <input value={typed} onChange={(e) => setTyped(e.target.value)} autoCapitalize="characters" autoComplete="off" />
           </label>
           <div className="settings-actions">
             <button className="btn" onClick={() => setOpen(false)} disabled={state === 'deleting'}>
-              Cancel
+              {t('Cancel')}
             </button>
             <button
               className="btn danger"
@@ -353,11 +366,11 @@ function DeleteAccount() {
                   await deleteAccount();
                   navigate('/', { replace: true });
                 } catch (err) {
-                  setState(err instanceof Error ? err.message : 'Couldn’t delete it. Try again.');
+                  setState(err instanceof Error ? t(err.message) : t('Couldn’t delete it. Try again.'));
                 }
               }}
             >
-              {state === 'deleting' ? 'Deleting…' : 'Delete my account'}
+              {state === 'deleting' ? t('Deleting…') : t('Delete my account')}
             </button>
           </div>
           {state !== 'idle' && state !== 'deleting' && <p className="field-note is-bad">{state}</p>}
@@ -373,7 +386,7 @@ function Section({ icon, title, children }: { icon: IconName; title: string; chi
   return (
     <section className="card settings-section">
       <h2 className="settings-title">
-        <Icon name={icon} size={18} /> {title}
+        <Icon name={icon} size={18} /> {t(title)}
       </h2>
       {children}
     </section>
@@ -384,8 +397,8 @@ function Row({ label, note, children }: { label: string; note?: string; children
   return (
     <div className="settings-row">
       <div className="settings-text">
-        <span className="settings-label">{label}</span>
-        {note && <span className="settings-note">{note}</span>}
+        <span className="settings-label">{t(label)}</span>
+        {note && <span className="settings-note">{t(note)}</span>}
       </div>
       <div className="settings-control">{children}</div>
     </div>
@@ -397,7 +410,7 @@ function Segmented<T extends string>({ value, onChange, options }: { value: T; o
     <div className="segmented" role="radiogroup">
       {options.map(([v, label]) => (
         <button key={v} type="button" role="radio" aria-checked={value === v} className={value === v ? 'is-on' : ''} onClick={() => onChange(v)}>
-          {label}
+          {t(label)}
         </button>
       ))}
     </div>
@@ -406,7 +419,7 @@ function Segmented<T extends string>({ value, onChange, options }: { value: T; o
 
 function Switch({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
-    <button type="button" role="switch" aria-checked={checked} aria-label={label} className={`switch${checked ? ' is-on' : ''}`} onClick={() => onChange(!checked)}>
+    <button type="button" role="switch" aria-checked={checked} aria-label={t(label)} className={`switch${checked ? ' is-on' : ''}`} onClick={() => onChange(!checked)}>
       <span />
     </button>
   );

@@ -5,8 +5,9 @@ import type { Booking, Creative, Review } from '../data/types';
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
 import { SafetyMenu } from './Safety';
-import { SERVICE_LABEL, formatDay } from './Booking';
+import { formatDay, serviceName } from './Booking';
 import { timeAgo } from './time';
+import { plural, t } from '../i18n';
 
 // Reviews: a client rates a session once it's over. They show on the provider's profile, and
 // the average shows wherever their rating does (map, lists, profile).
@@ -29,14 +30,14 @@ function StarPicker({ value, onChange }: { value: number; onChange: (v: number) 
   const shown = hover || value;
   return (
     <div className="star-picker">
-      <div role="radiogroup" aria-label="Rating" onMouseLeave={() => setHover(0)}>
+      <div role="radiogroup" aria-label={t('Rating')} onMouseLeave={() => setHover(0)}>
         {[1, 2, 3, 4, 5].map((n) => (
           <button
             key={n}
             type="button"
             role="radio"
             aria-checked={value === n}
-            aria-label={`${n} star${n > 1 ? 's' : ''}`}
+            aria-label={plural(n, '{n} star', '{n} stars')}
             className={n <= shown ? 'is-on' : ''}
             onMouseEnter={() => setHover(n)}
             onClick={() => onChange(n)}
@@ -45,7 +46,7 @@ function StarPicker({ value, onChange }: { value: number; onChange: (v: number) 
           </button>
         ))}
       </div>
-      <span className="star-word">{shown ? WORDS[shown] : 'Tap a star'}</span>
+      <span className="star-word">{shown ? t(WORDS[shown]) : t('Tap a star')}</span>
     </div>
   );
 }
@@ -74,7 +75,7 @@ export function ReviewModal({ booking, provider, onClose }: { booking: Booking; 
       await submitReview(booking, rating, comment.trim());
       setState('sent');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Couldn’t save that. Try again.');
+      setError(e instanceof Error ? t(e.message) : t('Couldn’t save that. Try again.'));
       setState('form');
     }
   };
@@ -85,27 +86,27 @@ export function ReviewModal({ booking, provider, onClose }: { booking: Booking; 
         {state === 'sent' ? (
           <>
             <div className="cropper-head">
-              <h2>Thanks for your review</h2>
+              <h2>{t('Thanks for your review')}</h2>
             </div>
-            <p className="promote-sub">It’s on {first}’s profile now, and helps other people find good people to work with.</p>
+            <p className="promote-sub">{t('It’s on {name}’s profile now, and helps other people find good people to work with.', { name: first })}</p>
             <div className="cropper-foot">
               <button className="btn primary" onClick={onClose}>
-                Done
+                {t('Done')}
               </button>
             </div>
           </>
         ) : (
           <>
             <div className="cropper-head">
-              <h2>{existing ? 'Edit your review' : `How was it with ${first}?`}</h2>
-              <button className="icon-btn ghost" onClick={onClose} aria-label="Close">
+              <h2>{existing ? t('Edit your review') : t('How was it with {name}?', { name: first })}</h2>
+              <button className="icon-btn ghost" onClick={onClose} aria-label={t('Close')}>
                 <Icon name="close" size={20} />
               </button>
             </div>
             <div className="review-about">
               <Avatar person={provider} size={44} />
               <span>
-                <strong>{SERVICE_LABEL[booking.service]}</strong>
+                <strong>{serviceName(booking.service)}</strong>
                 <span className="muted small">
                   {provider.name} · {formatDay(booking.start)}
                 </span>
@@ -118,17 +119,17 @@ export function ReviewModal({ booking, provider, onClose }: { booking: Booking; 
               maxLength={500}
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              placeholder="What was it like? (optional) e.g. the sound, the space, how they were to work with"
-              aria-label="Your review"
+              placeholder={t('What was it like? (optional) e.g. the sound, the space, how they were to work with')}
+              aria-label={t('Your review')}
             />
-            <p className="field-note">Your review and name are shown on {first}’s profile.</p>
+            <p className="field-note">{t('Your review and name are shown on {name}’s profile.', { name: first })}</p>
             {error && <p className="field-note is-bad">{error}</p>}
             <div className="cropper-foot">
               <button className="btn" onClick={onClose}>
-                Not now
+                {t('Not now')}
               </button>
               <button className="btn primary" onClick={send} disabled={!rating || state === 'sending'}>
-                {state === 'sending' ? 'Saving…' : existing ? 'Save changes' : 'Post review'}
+                {state === 'sending' ? t('Saving…') : existing ? t('Save changes') : t('Post review')}
               </button>
             </div>
           </>
@@ -148,7 +149,7 @@ export function ReviewList({ person, mine }: { person: Creative; mine: boolean }
   return (
     <section id="reviews">
       <h2 className="section-title review-title">
-        Reviews
+        {t('Reviews')}
         {person.reviews > 0 && (
           <span className="review-summary">
             <Stars value={person.rating} /> {person.rating.toFixed(1)} <span className="muted">({person.reviews})</span>
@@ -156,12 +157,12 @@ export function ReviewList({ person, mine }: { person: Creative; mine: boolean }
         )}
       </h2>
       {reviews === undefined ? (
-        <p className="muted small">Loading…</p>
+        <p className="muted small">{t('Loading…')}</p>
       ) : reviews.length === 0 ? (
         <p className="muted small review-empty">
           {mine
-            ? 'No reviews yet. People can review you after a booked session.'
-            : `No reviews yet. People who book ${person.name.split(' ')[0]} through Music Match can leave one after their session.`}
+            ? t('No reviews yet. People can review you after a booked session.')
+            : t('No reviews yet. People who book {name} through Music Match can leave one after their session.', { name: person.name.split(' ')[0] })}
         </p>
       ) : (
         <div className="reviews">
@@ -170,7 +171,7 @@ export function ReviewList({ person, mine }: { person: Creative; mine: boolean }
           ))}
           {!all && reviews.length > 3 && (
             <button className="btn" onClick={() => setAll(true)}>
-              Show all {reviews.length} reviews
+              {t('Show all {n} reviews', { n: reviews.length })}
             </button>
           )}
         </div>
@@ -191,11 +192,11 @@ function ReviewCard({ review: r }: { review: Review }) {
         <span className="review-who">
           <strong className="small">{who.name}</strong>
           <span className="muted small">
-            {SERVICE_LABEL[r.service]} · {timeAgo(r.at)}
+            {serviceName(r.service)} · {timeAgo(r.at)}
           </span>
         </span>
         <Stars value={r.rating} size={13} />
-        {who.id !== meId && <SafetyMenu target={{ userId: who.id, name: who.name, type: 'review', id: r.id }} label="Report review" />}
+        {who.id !== meId && <SafetyMenu target={{ userId: who.id, name: who.name, type: 'review', id: r.id }} label={t('Report review')} />}
       </div>
       {r.comment && <p>{r.comment}</p>}
     </div>

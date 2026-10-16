@@ -16,6 +16,7 @@ import {
   siYoutube,
 } from 'simple-icons';
 import type { SocialPlatform } from './types';
+import { t } from '../i18n';
 
 type PlatformInfo = {
   id: SocialPlatform;
@@ -50,7 +51,8 @@ export const PLATFORMS: PlatformInfo[] = [
   p('twitch', 'Twitch', siTwitch, (h) => `https://twitch.tv/${h}`),
   p('vimeo', 'Vimeo', siVimeo, (h) => `https://vimeo.com/${h}`),
   p('linktree', 'Linktree', siLinktree, (h) => `https://linktr.ee/${h}`),
-  p('website', 'Website', null),
+  // "Website" is the only generic name; it's translated when shown.
+  { ...p('website', 'Website', null), get label() { return t('Website'); } },
 ];
 
 export const platformInfo = (id: SocialPlatform) => PLATFORMS.find((x) => x.id === id)!;

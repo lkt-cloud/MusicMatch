@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { LegalSection as Section } from '../components/LegalSection';
 import { LEGAL_UPDATED, OPERATOR } from '../data/operator';
+import { lang, t } from '../i18n';
 
 // Plain-language Privacy Policy, written to match what the app actually does today.
 // Have a lawyer (ideally one who knows Japan's APPI) review it, and update it whenever the
@@ -29,6 +30,9 @@ export function PrivacyPage() {
         <h1>Privacy Policy</h1>
         <p className="muted">Last updated {LEGAL_UPDATED}</p>
       </header>
+      {lang() === 'ja' && (
+        <p className="legal-lang-note">この{t('Privacy Policy')}は現在英語版のみです。日本語版は準備中です。</p>
+      )}
 
       <p className="legal-lead">
         This explains what personal information {OPERATOR_NAME} (“Music Match”, “we”, “us”) collects through the website and

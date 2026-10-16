@@ -1,11 +1,12 @@
 import type { Creative, PostKind, Role } from './types';
+import { t } from '../i18n';
 
 export const ROLES: { id: Role; label: string; plural: string; color: string }[] = [
-  { id: 'artist', label: 'Artist', plural: 'Artists', color: '#8a5a44' },
-  { id: 'producer', label: 'Producer', plural: 'Producers', color: '#4f6b4a' },
-  { id: 'videographer', label: 'Videographer', plural: 'Videographers', color: '#b8743f' },
-  { id: 'studio', label: 'Studio', plural: 'Studios', color: '#44627a' },
-  { id: 'engineer', label: 'Engineer', plural: 'Engineers', color: '#a08a3c' },
+  { id: 'artist', get label() { return t('Artist'); }, get plural() { return t('Artists'); }, color: '#8a5a44' },
+  { id: 'producer', get label() { return t('Producer'); }, get plural() { return t('Producers'); }, color: '#4f6b4a' },
+  { id: 'videographer', get label() { return t('Videographer'); }, get plural() { return t('Videographers'); }, color: '#b8743f' },
+  { id: 'studio', get label() { return t('Studio'); }, get plural() { return t('Studios'); }, color: '#44627a' },
+  { id: 'engineer', get label() { return t('Engineer'); }, get plural() { return t('Engineers'); }, color: '#a08a3c' },
 ];
 
 export const roleInfo = (role: Role) => ROLES.find((r) => r.id === role)!;
@@ -48,9 +49,9 @@ export const canPromote = (c: Pick<Creative, 'role' | 'alsoRoles'>) => rolesOf(c
 
 /** Post topics. `icon` is an Icon name; kept as a string here to avoid a UI import. */
 export const POST_KINDS: { id: PostKind; label: string; icon: string; hint: string }[] = [
-  { id: 'collab', label: 'Collab', icon: 'notes', hint: 'Looking to work with someone' },
-  { id: 'promo', label: 'Self-promo', icon: 'mic', hint: 'New drops, releases, packs, open bookings' },
-  { id: 'question', label: 'Question', icon: 'chat', hint: 'Ask the community' },
+  { id: 'collab', get label() { return t('Collab'); }, icon: 'notes', get hint() { return t('Looking to work with someone'); } },
+  { id: 'promo', get label() { return t('Self-promo'); }, icon: 'mic', get hint() { return t('New drops, releases, packs, open bookings'); } },
+  { id: 'question', get label() { return t('Question'); }, icon: 'chat', get hint() { return t('Ask the community'); } },
 ];
 
 export const kindLabel = (kind: PostKind) => POST_KINDS.find((k) => k.id === kind)!.label;

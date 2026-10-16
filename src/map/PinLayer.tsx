@@ -8,6 +8,7 @@ import { RoleIcon } from '../components/Icon';
 import { isNight, type Sky } from './sky';
 import { CITY_AREA_MILES, formatRadius, isExact, radiusCircle } from './shared';
 import { DETAIL_ZOOM } from './detail/useMapDetail';
+import { t } from '../i18n';
 
 type Props = {
   size: { w: number; h: number };
@@ -71,8 +72,8 @@ function fanLayout(n: number, x: number, y: number) {
 function hoverRadiusOf(c: Creative, skipTravel: boolean) {
   const area = !isExact(c);
   if (c.travelMiles && !skipTravel)
-    return { miles: c.travelMiles, kind: 'travel', text: area ? `${c.city} · travels up to ${formatRadius(c.travelMiles)}` : `Travels up to ${formatRadius(c.travelMiles)}` } as const;
-  if (area) return { miles: CITY_AREA_MILES, kind: 'area', text: `Somewhere in ${c.city}` } as const;
+    return { miles: c.travelMiles, kind: 'travel', text: area ? t('{city} · travels up to {radius}', { city: c.city, radius: formatRadius(c.travelMiles) }) : t('Travels up to {radius}', { radius: formatRadius(c.travelMiles) }) } as const;
+  if (area) return { miles: CITY_AREA_MILES, kind: 'area', text: t('Somewhere in {city}', { city: c.city }) } as const;
   return null;
 }
 
@@ -190,7 +191,7 @@ export function PinLayer({ size, zoom, toScreen, creatives, me, selectedId, onSe
         }}
         onClick={() => onSelect(selected ? null : c.id)}
         {...hoverHandlers(c)}
-        aria-label={`${c.name}, ${rolesOf(c).map((r) => roleInfo(r).label).join(' and ')}`}
+        aria-label={`${c.name}, ${rolesOf(c).map((r) => roleInfo(r).label).join(t(' and '))}`}
       >
         <span className="pin-head">
           <Avatar person={c} size={32} />
@@ -215,7 +216,7 @@ export function PinLayer({ size, zoom, toScreen, creatives, me, selectedId, onSe
           className="pin-cluster"
           style={{ transform: `translate(${g.x}px, ${g.y}px)`, ['--d' as string]: `${Math.min(56, 34 + Math.log2(n) * 5)}px` }}
           onClick={() => onClusterClick(members)}
-          aria-label={`${n} creatives — zoom in`}
+          aria-label={t('{n} creatives — zoom in', { n })}
         >
           <span className="vinyl">
             <span className="vinyl-label">{n}</span>
@@ -239,14 +240,14 @@ export function PinLayer({ size, zoom, toScreen, creatives, me, selectedId, onSe
             className="crowd-more"
             style={{ transform: `translate(${seats[FAN_MAX][0]}px, ${seats[FAN_MAX][1]}px)` }}
             onClick={() => setExpanded(u.city!)}
-            aria-label={`Show ${u.members.length - FAN_MAX} more in ${u.members[0].city}`}
+            aria-label={t('Show {n} more in {city}', { n: u.members.length - FAN_MAX, city: u.members[0].city })}
           >
             +{u.members.length - FAN_MAX}
           </button>
         )}
         {open && u.members.length > FAN_MAX + 1 && (
           <button className="crowd-less" style={{ transform: `translate(${u.x}px, ${u.y + 18}px)` }} onClick={() => setExpanded(null)}>
-            Show less
+            {t('Show less')}
           </button>
         )}
         <span className="map-label is-city crowd-city" style={{ transform: `translate(${u.x}px, ${u.y}px)` }}>

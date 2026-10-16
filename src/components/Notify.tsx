@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useStore } from '../store';
 import { disablePush, enablePush, pushState, type PushState } from '../push';
 import { Icon } from './Icon';
+import { t } from '../i18n';
 
 /** This device's notification state, kept up to date when you come back to the page. */
 export function usePushState() {
@@ -22,6 +23,7 @@ export function usePushState() {
   return [state, setState] as const;
 }
 
+// English here; shown through t().
 const HELP: Partial<Record<PushState, string>> = {
   blocked: 'Notifications are turned off for Music Match in your settings. Turn them on there, then come back.',
   install: 'On iPhone, add Music Match to your Home Screen first: tap Share, then “Add to Home Screen”. Open it from there and turn notifications on.',
@@ -49,7 +51,7 @@ export function NotifyCard({ why, compact = false }: { why: string; compact?: bo
     try {
       setState(await enablePush());
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Couldn’t turn notifications on. Try again.');
+      setError(e instanceof Error ? t(e.message) : t('Couldn’t turn notifications on. Try again.'));
     } finally {
       setBusy(false);
     }
@@ -61,13 +63,13 @@ export function NotifyCard({ why, compact = false }: { why: string; compact?: bo
         <Icon name="bell" size={20} />
       </span>
       <div className="notify-text">
-        <strong>Turn on notifications</strong>
-        <span>{HELP[state] ?? why}</span>
+        <strong>{t('Turn on notifications')}</strong>
+        <span>{HELP[state] ? t(HELP[state]!) : why}</span>
         {error && <span className="field-note is-bad">{error}</span>}
       </div>
       {state === 'off' && (
         <button className="btn primary" onClick={turnOn} disabled={busy}>
-          {busy ? 'One moment…' : 'Turn on'}
+          {busy ? t('One moment…') : t('Turn on')}
         </button>
       )}
     </div>
@@ -86,7 +88,7 @@ export function DevicePush() {
     try {
       setState(await fn());
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong. Try again.');
+      setError(e instanceof Error ? t(e.message) : t('Something went wrong. Try again.'));
     } finally {
       setBusy(false);
     }
@@ -97,18 +99,18 @@ export function DevicePush() {
     <div className="device-push">
       {state === 'on' ? (
         <button className="btn" onClick={() => run(disablePush)} disabled={busy}>
-          Turn off
+          {t('Turn off')}
         </button>
       ) : state === 'off' ? (
         <button className="btn primary" onClick={() => run(enablePush)} disabled={busy}>
-          {busy ? 'One moment…' : 'Turn on'}
+          {busy ? t('One moment…') : t('Turn on')}
         </button>
       ) : (
-        <span className="muted small">{state === 'blocked' ? 'Blocked in settings' : state === 'install' ? 'Add to Home Screen first' : 'Not available here'}</span>
+        <span className="muted small">{state === 'blocked' ? t('Blocked in settings') : state === 'install' ? t('Add to Home Screen first') : t('Not available here')}</span>
       )}
       {error && <span className="field-note is-bad">{error}</span>}
     </div>
   );
 }
 
-export const pushStateNote = (state: PushState | null) => (state ? HELP[state] : undefined);
+export const pushStateNote = (state: PushState | null) => (state && HELP[state] ? t(HELP[state]!) : undefined);

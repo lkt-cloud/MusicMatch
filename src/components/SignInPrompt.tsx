@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useStore } from '../store';
 import { Icon, type IconName } from './Icon';
+import { t } from '../i18n';
 
 /** Stands in for a page that needs an account (Messages, your profile) when browsing as a guest. */
 export function SignInPrompt({ icon, title, text }: { icon: IconName; title: string; text: string }) {
@@ -12,10 +13,10 @@ export function SignInPrompt({ icon, title, text }: { icon: IconName; title: str
         <h2>{title}</h2>
         <p>{text}</p>
         <button className="btn primary" onClick={() => requireSignIn(text)}>
-          Sign in or create an account
+          {t('Sign in or create an account')}
         </button>
         <Link to="/settings" className="settings-link">
-          <Icon name="settings" size={15} /> Settings
+          <Icon name="settings" size={15} /> {t('Settings')}
         </Link>
       </div>
     </div>

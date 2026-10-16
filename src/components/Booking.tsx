@@ -5,26 +5,28 @@ import type { Booking, Creative, Role, ServiceType, SharedSlot, Slot } from '../
 import { rolesOf } from '../data/roles';
 import { NotifyCard } from './Notify';
 import { Icon } from './Icon';
+import { lang, locale, plural, t } from '../i18n';
 
 // Booking times: the time frames someone is open for sessions. They set them on their profile,
 // anyone can look at them there, and they can send a few straight into a message.
 
-const dayFmt = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-const timeFmt = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
+// Made on each use so they follow the language setting.
+const dayFmt = () => new Intl.DateTimeFormat(locale(), { weekday: 'short', month: 'short', day: 'numeric' });
+const timeFmt = () => new Intl.DateTimeFormat(locale(), { hour: 'numeric', minute: '2-digit' });
 
-export const formatDay = (t: number) => {
-  const d = new Date(t);
+export const formatDay = (at: number) => {
+  const d = new Date(at);
   const today = new Date();
   const tomorrow = new Date(today.getTime() + 86_400_000);
-  if (d.toDateString() === today.toDateString()) return `Today, ${dayFmt.format(d)}`;
-  if (d.toDateString() === tomorrow.toDateString()) return `Tomorrow, ${dayFmt.format(d)}`;
-  return dayFmt.format(d);
+  if (d.toDateString() === today.toDateString()) return t('Today, {day}', { day: dayFmt().format(d) });
+  if (d.toDateString() === tomorrow.toDateString()) return t('Tomorrow, {day}', { day: dayFmt().format(d) });
+  return dayFmt().format(d);
 };
 export const formatTimes = (s: { start: number; end: number }) =>
   new Date(s.start).toDateString() === new Date(s.end).toDateString()
-    ? timeFmt.formatRange(s.start, s.end)
-    : `${timeFmt.format(s.start)} – ${timeFmt.format(s.end)} (next day)`;
-export const formatSlot = (s: { start: number; end: number }) => `${dayFmt.format(s.start)} · ${formatTimes(s)}`;
+    ? timeFmt().formatRange(s.start, s.end)
+    : t('{from} – {to} (next day)', { from: timeFmt().format(s.start), to: timeFmt().format(s.end) });
+export const formatSlot = (s: { start: number; end: number }) => `${dayFmt().format(s.start)} · ${formatTimes(s)}`;
 
 /** Slots grouped by the day they start on, in order. */
 function byDay<T extends { start: number }>(slots: T[]): [string, T[]][] {
@@ -56,6 +58,9 @@ const ROLE_SERVICES: Record<Role, ServiceType[]> = {
   artist: ['performance'],
 };
 
+/** The service's name in the current language. */
+export const serviceName = (s: ServiceType) => t(SERVICE_LABEL[s]);
+
 /** A studio's own address, where their sessions happen (or null if they're not a studio with one). */
 export const studioAddress = (p: Creative) => (rolesOf(p).includes('studio') && p.address ? p.address : null);
 
@@ -72,12 +77,14 @@ export function directionsUrl(place: string, coords: [number, number] | null) {
 /** Opens Google Calendar with the session filled in, ready to save. */
 export function googleCalendarUrl(b: Booking, provider: Creative, client: Creative) {
   const stamp = (t: number) => new Date(t).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-  const service = SERVICE_LABEL[b.service].replace('Other session', 'Session');
+  const service = b.service === 'session' ? t('Session') : serviceName(b.service);
   const q = new URLSearchParams({
     action: 'TEMPLATE',
     text: `${service}: ${provider.name} & ${client.name}`,
     dates: `${stamp(b.start)}/${stamp(b.end)}`,
-    details: [`${service} booked on Music Match.`, b.note ? `Note: ${b.note}` : '', `${window.location.origin}/bookings`].filter(Boolean).join('\n'),
+    details: [t('{service} booked on Music Match.', { service }), b.note ? t('Note: {note}', { note: b.note }) : '', `${window.location.origin}/bookings`]
+      .filter(Boolean)
+      .join('\n'),
     ...(b.place ? { location: b.place } : {}),
   });
   return `https://calendar.google.com/calendar/render?${q}`;
@@ -101,7 +108,7 @@ function Sheet({ title, sub, onClose, children }: { title: string; sub?: string;
       <div className="modal booking-modal" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
         <div className="cropper-head">
           <h2>{title}</h2>
-          <button className="icon-btn ghost" onClick={onClose} aria-label="Close">
+          <button className="icon-btn ghost" onClick={onClose} aria-label={t('Close')}>
             <Icon name="close" size={20} />
           </button>
         </div>
@@ -143,13 +150,13 @@ export function BookingEditor({ onClose }: { onClose: () => void }) {
   const [added, setAdded] = useState(0);
 
   const add = () => {
-    if (!date || !from || !to) return setError('Pick a day and a start and end time.');
+    if (!date || !from || !to) return setError(t('Pick a day and a start and end time.'));
     const start = at(date, from);
     let end = at(date, to);
     // An end time earlier than the start means it runs past midnight (e.g. 22:00 to 02:00).
     if (end <= start) end += 86_400_000;
-    if (end - start > 86_400_000) return setError('A booking time can be up to 24 hours long.');
-    if (end <= Date.now()) return setError('That time has already passed.');
+    if (end - start > 86_400_000) return setError(t('A booking time can be up to 24 hours long.'));
+    if (end <= Date.now()) return setError(t('That time has already passed.'));
     const week = 7 * 86_400_000;
     // Add by calendar date, so repeating across a daylight-saving change keeps the same clock time.
     const list = Array.from({ length: weeks }, (_, i) => {
@@ -169,9 +176,13 @@ export function BookingEditor({ onClose }: { onClose: () => void }) {
   }, [added]);
 
   return (
-    <Sheet title="Your booking times" sub="Set the times you’re open for sessions. Anyone can see them on your profile, and you can send them in messages." onClose={onClose}>
+    <Sheet
+      title={t('Your booking times')}
+      sub={t('Set the times you’re open for sessions. Anyone can see them on your profile, and you can send them in messages.')}
+      onClose={onClose}
+    >
       <div className="booking-form">
-        <div className="booking-presets" role="group" aria-label="Quick times">
+        <div className="booking-presets" role="group" aria-label={t('Quick times')}>
           {PRESETS.map(([label, a, b]) => (
             <button
               key={label}
@@ -182,21 +193,21 @@ export function BookingEditor({ onClose }: { onClose: () => void }) {
                 setTo(b);
               }}
             >
-              {label}
+              {t(label)}
             </button>
           ))}
         </div>
         <div className="booking-fields">
           <label className="booking-field is-day">
-            <span className="field-label">Day</span>
+            <span className="field-label">{t('Day')}</span>
             <input type="date" value={date} min={toDateInput(new Date())} onChange={(e) => setDate(e.target.value)} />
           </label>
           <label className="booking-field">
-            <span className="field-label">From</span>
+            <span className="field-label">{t('From')}</span>
             <input type="time" value={from} step={900} onChange={(e) => setFrom(e.target.value)} />
           </label>
           <label className="booking-field">
-            <span className="field-label">To</span>
+            <span className="field-label">{t('To')}</span>
             <input type="time" value={to} step={900} onChange={(e) => setTo(e.target.value)} />
           </label>
         </div>
@@ -205,32 +216,32 @@ export function BookingEditor({ onClose }: { onClose: () => void }) {
           value={note}
           maxLength={80}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="Note (optional), e.g. Studio A, mixing only"
-          aria-label="Note"
+          placeholder={t('Note (optional), e.g. Studio A, mixing only')}
+          aria-label={t('Note')}
         />
         <div className="booking-add">
           <label className="booking-repeat">
-            <span>Repeat</span>
+            <span>{t('Repeat')}</span>
             <select value={weeks} onChange={(e) => setWeeks(Number(e.target.value))}>
-              <option value={1}>Just this day</option>
-              <option value={2}>Weekly, 2 weeks</option>
-              <option value={4}>Weekly, 4 weeks</option>
-              <option value={8}>Weekly, 8 weeks</option>
+              <option value={1}>{t('Just this day')}</option>
+              <option value={2}>{t('Weekly, {n} weeks', { n: 2 })}</option>
+              <option value={4}>{t('Weekly, {n} weeks', { n: 4 })}</option>
+              <option value={8}>{t('Weekly, {n} weeks', { n: 8 })}</option>
             </select>
           </label>
           <button className="btn primary" onClick={add}>
-            <Icon name="plus" size={16} /> Add time
+            <Icon name="plus" size={16} /> {t('Add time')}
           </button>
         </div>
         {error && <p className="field-note is-bad">{error}</p>}
-        {added > 0 && <p className="field-note is-good">{added === 1 ? 'Added.' : `Added ${added} times.`}</p>}
+        {added > 0 && <p className="field-note is-good">{added === 1 ? t('Added.') : t('Added {n} times.', { n: added })}</p>}
       </div>
 
       <div className="booking-list">
         {mine === undefined ? (
-          <p className="muted small">Loading…</p>
+          <p className="muted small">{t('Loading…')}</p>
         ) : mine.length === 0 ? (
-          <p className="empty small">No booking times yet. Add your first one above.</p>
+          <p className="empty small">{t('No booking times yet. Add your first one above.')}</p>
         ) : (
           byDay(mine).map(([day, list]) => (
             <div key={day} className="booking-day">
@@ -245,11 +256,11 @@ export function BookingEditor({ onClose }: { onClose: () => void }) {
                     className={`chip booking-state${s.booked ? ' is-on' : ''}`}
                     onClick={() => setSlotBooked(s.id, !s.booked)}
                     aria-pressed={s.booked}
-                    title={s.booked ? 'Booked: hidden from others. Tap to open it again.' : 'Tap when this time gets booked'}
+                    title={s.booked ? t('Booked: hidden from others. Tap to open it again.') : t('Tap when this time gets booked')}
                   >
-                    {s.booked ? 'Booked' : 'Open'}
+                    {s.booked ? t('Booked') : t('Open')}
                   </button>
-                  <button className="icon-btn ghost" onClick={() => deleteSlot(s.id)} aria-label={`Remove ${formatSlot(s)}`}>
+                  <button className="icon-btn ghost" onClick={() => deleteSlot(s.id)} aria-label={t('Remove {time}', { time: formatSlot(s) })}>
                     <Icon name="trash" size={16} />
                   </button>
                 </div>
@@ -272,19 +283,19 @@ export function BookingTimes({ person, onClose }: { person: Creative; onClose: (
   const [picked, setPicked] = useState<Slot | null>(null);
 
   const request = (s: Slot) => {
-    if (!requireSignIn(`Sign in to book ${first}.`)) return;
+    if (!requireSignIn(t('Sign in to book {name}.', { name: first }))) return;
     setPicked(s);
   };
 
   if (picked) return <BookingRequest provider={person} slot={picked} onClose={onClose} onBack={() => setPicked(null)} />;
 
   return (
-    <Sheet title={`${first}’s booking times`} sub="Times are shown in your time zone. Tap one to book it." onClose={onClose}>
+    <Sheet title={t('{name}’s booking times', { name: first })} sub={t('Times are shown in your time zone. Tap one to book it.')} onClose={onClose}>
       <div className="booking-list">
         {open === undefined ? (
-          <p className="muted small">Loading…</p>
+          <p className="muted small">{t('Loading…')}</p>
         ) : open.length === 0 ? (
-          <p className="empty small">No open times right now. Send {first} a message to ask about availability.</p>
+          <p className="empty small">{t('No open times right now. Send {name} a message to ask about availability.', { name: first })}</p>
         ) : (
           byDay(open).map(([day, list]) => (
             <div key={day} className="booking-day">
@@ -296,7 +307,7 @@ export function BookingTimes({ person, onClose }: { person: Creative; onClose: (
                     {s.note && <small>{s.note}</small>}
                   </span>
                   <span className="booking-ask">
-                    Book <Icon name="chevron" size={14} />
+                    {t('Book')} <Icon name="chevron" size={14} />
                   </span>
                 </button>
               ))}
@@ -343,19 +354,22 @@ export function BookingRequest({
       await requestBooking(slot, provider.id, service, note.trim(), studio ? '' : place.trim());
       setState('sent');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Couldn’t send that. Try again.');
+      setError(e instanceof Error ? t(e.message) : t('Couldn’t send that. Try again.'));
       setState('form');
     }
   };
 
   if (state === 'sent')
     return (
-      <Sheet title="Request sent" onClose={onClose}>
+      <Sheet title={t('Request sent')} onClose={onClose}>
         <p className="promote-sub">
-          {first} will accept or decline your {SERVICE_LABEL[service].toLowerCase()} on {formatSlot(slot)}. We’ll let you know, and remind
-          you before the session.
+          {t('{name} will accept or decline your {service} on {time}. We’ll let you know, and remind you before the session.', {
+            name: first,
+            service: lang() === 'ja' ? serviceName(service) : SERVICE_LABEL[service].toLowerCase(),
+            time: formatSlot(slot),
+          })}
         </p>
-        <NotifyCard why="So you hear back as soon as they answer, and get reminders before the session." />
+        <NotifyCard why={t('So you hear back as soon as they answer, and get reminders before the session.')} />
         <div className="cropper-foot">
           <button
             className="btn"
@@ -364,17 +378,17 @@ export function BookingRequest({
               navigate('/bookings');
             }}
           >
-            See your bookings
+            {t('See your bookings')}
           </button>
           <button className="btn primary" onClick={onClose}>
-            Done
+            {t('Done')}
           </button>
         </div>
       </Sheet>
     );
 
   return (
-    <Sheet title={`Book ${first}`} onClose={onClose}>
+    <Sheet title={t('Book {name}', { name: first })} onClose={onClose}>
       <div className="booking-summary">
         <Icon name="calendar" size={18} />
         <span>
@@ -385,23 +399,23 @@ export function BookingRequest({
           </span>
         </span>
       </div>
-      <div className="booking-services" role="radiogroup" aria-label="What it’s for">
-        <span className="field-label">What’s it for?</span>
+      <div className="booking-services" role="radiogroup" aria-label={t('What’s it for?')}>
+        <span className="field-label">{t('What’s it for?')}</span>
         <div className="chips">
           {services.map((s) => (
             <button key={s} type="button" role="radio" aria-checked={service === s} className={`chip${service === s ? ' is-on' : ''}`} onClick={() => setService(s)}>
-              {SERVICE_LABEL[s]}
+              {serviceName(s)}
             </button>
           ))}
         </div>
       </div>
       <div className="booking-services">
-        <span className="field-label">Where?</span>
+        <span className="field-label">{t('Where?')}</span>
         {studio ? (
           <div className="booking-place is-fixed">
             <Icon name="pin" size={16} />
             <span>
-              {studio} <span className="muted small">({first}’s studio)</span>
+              {studio} <span className="muted small">{t('({name}’s studio)', { name: first })}</span>
             </span>
           </div>
         ) : (
@@ -410,8 +424,8 @@ export function BookingRequest({
             value={place}
             maxLength={200}
             onChange={(e) => setPlace(e.target.value)}
-            placeholder="Optional, e.g. your studio, a venue or an address. You can also decide later."
-            aria-label="Where"
+            placeholder={t('Optional, e.g. your studio, a venue or an address. You can also decide later.')}
+            aria-label={t('Where?')}
           />
         )}
       </div>
@@ -421,18 +435,18 @@ export function BookingRequest({
         maxLength={300}
         value={note}
         onChange={(e) => setNote(e.target.value)}
-        placeholder={`Anything ${first} should know? (optional) e.g. what you’re working on, how many people are coming`}
-        aria-label="Note"
+        placeholder={t('Anything {name} should know? (optional) e.g. what you’re working on, how many people are coming', { name: first })}
+        aria-label={t('Note')}
       />
       {error && <p className="field-note is-bad">{error}</p>}
       <div className="cropper-foot">
         {onBack && (
           <button className="btn" onClick={onBack}>
-            Back
+            {t('Back')}
           </button>
         )}
         <button className="btn primary" onClick={send} disabled={state === 'sending'}>
-          {state === 'sending' ? 'Sending…' : 'Send request'}
+          {state === 'sending' ? t('Sending…') : t('Send request')}
         </button>
       </div>
     </Sheet>
@@ -466,16 +480,16 @@ export function ShareSlotsModal({ to, onClose }: { to: Creative; onClose: () => 
   if (editing) return <BookingEditor onClose={() => setEditing(false)} />;
 
   return (
-    <Sheet title="Send booking times" sub={`Pick the times to offer ${to.name}. They can tap one to book it.`} onClose={onClose}>
+    <Sheet title={t('Send booking times')} sub={t('Pick the times to offer {name}. They can tap one to book it.', { name: to.name })} onClose={onClose}>
       <div className="booking-list">
         {open === undefined ? (
-          <p className="muted small">Loading…</p>
+          <p className="muted small">{t('Loading…')}</p>
         ) : open.length === 0 ? (
-          <p className="empty small">You don’t have any open booking times yet.</p>
+          <p className="empty small">{t('You don’t have any open booking times yet.')}</p>
         ) : (
           <>
             <button className="link booking-all" onClick={() => setPicked(new Set(open.slice(0, 20).map((s) => s.id)))}>
-              Select all
+              {t('Select all')}
             </button>
             {byDay(open).map(([day, list]) => (
               <div key={day} className="booking-day">
@@ -496,10 +510,10 @@ export function ShareSlotsModal({ to, onClose }: { to: Creative; onClose: () => 
       </div>
       <div className="cropper-foot booking-foot">
         <button className="btn" onClick={() => setEditing(true)}>
-          <Icon name="calendar" size={16} /> {open?.length ? 'Edit times' : 'Set booking times'}
+          <Icon name="calendar" size={16} /> {open?.length ? t('Edit times') : t('Set booking times')}
         </button>
         <button className="btn primary" onClick={send} disabled={!picked.size}>
-          {picked.size ? `Send ${picked.size} ${picked.size === 1 ? 'time' : 'times'}` : 'Send'}
+          {picked.size ? plural(picked.size, 'Send {n} time', 'Send {n} times') : t('Send')}
         </button>
       </div>
     </Sheet>
@@ -514,7 +528,7 @@ export function SlotsCard({ slots, mine, from, onPick }: { slots: SharedSlot[]; 
     <div className={`slots-card${mine ? ' mine' : ''}`}>
       <div className="slots-card-head">
         <Icon name="calendar" size={16} />
-        <strong>{mine ? 'You sent booking times' : `${from.name.split(' ')[0]}’s open times`}</strong>
+        <strong>{mine ? t('You sent booking times') : t('{name}’s open times', { name: from.name.split(' ')[0] })}</strong>
       </div>
       {groups.map(([day, list]) => (
         <div key={day} className="slots-card-day">
@@ -530,7 +544,7 @@ export function SlotsCard({ slots, mine, from, onPick }: { slots: SharedSlot[]; 
               <button key={s.id} className="slots-card-slot is-pick" onClick={() => onPick(s)}>
                 {formatTimes(s)}
                 {s.note && <small> · {s.note}</small>}
-                <span className="slots-card-book">Book</span>
+                <span className="slots-card-book">{t('Book')}</span>
               </button>
             );
           })}

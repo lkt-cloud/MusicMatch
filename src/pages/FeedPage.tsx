@@ -18,6 +18,7 @@ import { splitPromoted, usePromotionFlags } from '../backend/promotions';
 import { startCheckout } from '../backend/api';
 import { LAUNCH_LABEL, usePricing } from '../data/pricing';
 import { SafetyMenu } from '../components/Safety';
+import { t } from '../i18n';
 
 /** "Around you" covers people within this many miles. */
 const NEARBY_MILES = 60;
@@ -60,19 +61,19 @@ export function FeedPage() {
     <div className="page feed-page">
       <div className="feed-main">
         <header className="feed-head">
-          <h1>Community</h1>
+          <h1>{t('Community')}</h1>
           {signedIn && canPromote(me) && (
             <button className="btn primary feed-promote" onClick={() => setPromoting(true)}>
-              <Icon name="image" size={16} /> Promote your work
+              <Icon name="image" size={16} /> {t('Promote your work')}
             </button>
           )}
           {located && (
-            <div className="segmented" role="tablist" aria-label="Feed">
+            <div className="segmented" role="tablist" aria-label={t('Feed')}>
               <button role="tab" aria-selected={scope === 'all'} className={scope === 'all' ? 'is-on' : ''} onClick={() => setScope('all')}>
-                All
+                {t('All')}
               </button>
               <button role="tab" aria-selected={scope === 'near'} className={scope === 'near' ? 'is-on' : ''} onClick={() => setScope('near')}>
-                Near {me.city || 'you'} <span className="count">{nearCount}</span>
+                {me.city ? t('Near {city}', { city: me.city }) : t('Near you')} <span className="count">{nearCount}</span>
               </button>
             </div>
           )}
@@ -80,9 +81,9 @@ export function FeedPage() {
 
         {signedIn ? <Composer /> : <GuestComposer />}
 
-        <div className="topic-filter" role="group" aria-label="Filter by topic">
+        <div className="topic-filter" role="group" aria-label={t('Filter by topic')}>
           <button className={`topic-chip${!topic ? ' is-on' : ''}`} onClick={() => setTopic(null)}>
-            All topics
+            {t('All topics')}
           </button>
           {POST_KINDS.map((k) => (
             <button
@@ -100,7 +101,7 @@ export function FeedPage() {
         <div className="posts">
           {shown.length === 0 && (
             <p className="empty">
-              {scope === 'near' ? `No posts within ${formatRadius(NEARBY_MILES)} yet.` : 'No posts yet.'}
+              {scope === 'near' ? t('No posts within {radius} yet.', { radius: formatRadius(NEARBY_MILES) }) : t('No posts yet.')}
             </p>
           )}
           {promotedTop.map((p) => (
@@ -116,12 +117,12 @@ export function FeedPage() {
 
       <aside className="feed-side">
         <div className="card side-card">
-          <h2 className="side-title">{located ? 'Near you' : 'On Music Match'}</h2>
+          <h2 className="side-title">{located ? t('Near you') : t('On Music Match')}</h2>
           {nearby.map((c) => (
             <CreativeRow key={c.id} person={c} />
           ))}
           <Link to="/" className="btn block">
-            <Icon name="map" size={17} /> Open the map
+            <Icon name="map" size={17} /> {t('Open the map')}
           </Link>
         </div>
       </aside>
@@ -133,10 +134,10 @@ export function FeedPage() {
 function GuestComposer() {
   const { requireSignIn } = useStore();
   return (
-    <button className="card guest-composer" onClick={() => requireSignIn('Sign in to post in Community.')}>
+    <button className="card guest-composer" onClick={() => requireSignIn(t('Sign in to post in Community.'))}>
       <Icon name="edit" size={18} />
-      <span>Share a collab, a release or a question…</span>
-      <span className="btn primary">Sign in to post</span>
+      <span>{t('Share a collab, a release or a question…')}</span>
+      <span className="btn primary">{t('Sign in to post')}</span>
     </button>
   );
 }
@@ -171,7 +172,7 @@ function Composer() {
       picker.clear();
       setOpen(false);
     } catch (e) {
-      picker.setErrors([paying && e instanceof Error ? e.message : 'Couldn’t save those files. Try smaller files.']);
+      picker.setErrors([paying && e instanceof Error ? t(e.message) : t('Couldn’t save those files. Try smaller files.')]);
     } finally {
       setPosting(false);
     }
@@ -181,7 +182,7 @@ function Composer() {
     return (
       <button className="composer card is-closed" onClick={() => setOpen(true)}>
         <Avatar person={me} size={40} />
-        <span className="composer-prompt">Share a collab, a new drop, a question…</span>
+        <span className="composer-prompt">{t('Share a collab, a new drop, a question…')}</span>
         <span className="composer-quick" aria-hidden>
           <Icon name="image" size={19} />
           <Icon name="clip" size={19} />
@@ -205,7 +206,7 @@ function Composer() {
           autoFocus
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="What’s happening? Tag a topic below so the right people see it."
+          placeholder={t('What’s happening? Tag a topic below so the right people see it.')}
           rows={3}
           onPaste={(e) => {
             if (e.clipboardData.files.length) {
@@ -220,7 +221,7 @@ function Composer() {
       </div>
 
       <div className="composer-topics">
-        <span className="field-label">Topic</span>
+        <span className="field-label">{t('Topic')}</span>
         <div className="topic-filter">
           {POST_KINDS.map((k) => (
             <button
@@ -244,27 +245,27 @@ function Composer() {
         <input type="checkbox" checked={promote} disabled={!live} onChange={(e) => setPromote(e.target.checked)} />
         <span className="promote-toggle-text">
           <strong>
-            <Icon name="star" size={14} filled={promote} /> Promote this post
+            <Icon name="star" size={14} filled={promote} /> {t('Promote this post')}
           </strong>
           <span>
             {live
-              ? `Pinned near the top of Community, marked Promoted, for 7 days.`
-              : 'Available once payments are connected (see SETUP.md).'}
+              ? t('Pinned near the top of Community, marked Promoted, for 7 days.')
+              : t('Available once payments are connected (see SETUP.md).')}
           </span>
         </span>
         <span className="promote-toggle-price">
           {PRICING.boost_post.price}
-          <span className="launch">{LAUNCH_LABEL}</span>
+          <span className="launch">{t(LAUNCH_LABEL)}</span>
         </span>
       </label>
 
       <div className="composer-foot">
         {picker.inputs}
         <button type="button" className="action" onClick={picker.pickMedia}>
-          <Icon name="image" size={18} /> Photo / video
+          <Icon name="image" size={18} /> {t('Photo / video')}
         </button>
         <button type="button" className="action" onClick={picker.pickFiles}>
-          <Icon name="clip" size={18} /> File
+          <Icon name="clip" size={18} /> {t('File')}
         </button>
         <span className="push" />
         <button
@@ -275,13 +276,13 @@ function Composer() {
             setOpen(false);
           }}
         >
-          Cancel
+          {t('Cancel')}
         </button>
-        <button type="button" className="btn primary" onClick={submit} disabled={!ready} title={!kind ? 'Pick a topic first' : undefined}>
-          {posting ? (paying ? 'Opening checkout…' : 'Posting…') : paying ? `Post & pay ${PRICING.boost_post.price}` : 'Post'}
+        <button type="button" className="btn primary" onClick={submit} disabled={!ready} title={!kind ? t('Pick a topic first') : undefined}>
+          {posting ? (paying ? t('Opening checkout…') : t('Posting…')) : paying ? t('Post & pay {price}', { price: PRICING.boost_post.price }) : t('Post')}
         </button>
       </div>
-      {!kind && (text.trim() || picker.files.length > 0) && <p className="field-note">Pick a topic to post.</p>}
+      {!kind && (text.trim() || picker.files.length > 0) && <p className="field-note">{t('Pick a topic to post.')}</p>}
     </div>
   );
 }
@@ -301,7 +302,7 @@ function PostCard({ post, promoted = false }: { post: Post; promoted?: boolean }
   const images = files.filter((f) => f.kind === 'image');
   const others = files.filter((f) => f.kind !== 'image');
   const away = mine || !located ? 0 : milesBetween(author.coords, me.coords);
-  const message = () => requireSignIn(`Sign in to message ${author.name}.`) && navigate(`/messages/${author.id}`);
+  const message = () => requireSignIn(t('Sign in to message {name}.', { name: author.name })) && navigate(`/messages/${author.id}`);
 
   const send = () => {
     if (!reply.trim() || !requireSignIn('Sign in to reply.')) return;
@@ -314,7 +315,7 @@ function PostCard({ post, promoted = false }: { post: Post; promoted?: boolean }
     <article className={`card post${promoted ? ' is-promoted' : ''}`}>
       {promoted && (
         <span className="promoted-tag">
-          <Icon name="star" size={12} filled /> Promoted
+          <Icon name="star" size={12} filled /> {t('Promoted')}
         </span>
       )}
       <header className="post-head">
@@ -327,11 +328,11 @@ function PostCard({ post, promoted = false }: { post: Post; promoted?: boolean }
           </Link>
           <span className="muted small">
             <RoleLine person={author} compact /> · {author.city}
-            {!located || away > NEARBY_MILES ? '' : !mine && ' · nearby'} · {timeAgo(post.at)}
+            {!located || away > NEARBY_MILES ? '' : !mine && ` · ${t('nearby')}`} · {timeAgo(post.at)}
           </span>
         </div>
         <TopicPill kind={post.kind} />
-        {!mine && <SafetyMenu target={{ userId: author.id, name: author.name, type: 'post', id: post.id }} label="Report or block" />}
+        {!mine && <SafetyMenu target={{ userId: author.id, name: author.name, type: 'post', id: post.id }} label={t('Report or block')} />}
       </header>
 
       {post.text && <p className="post-text">{post.text}</p>}
@@ -357,7 +358,7 @@ function PostCard({ post, promoted = false }: { post: Post; promoted?: boolean }
             {author.name} · {author.rate}
           </span>
           <button className="btn primary" onClick={message}>
-            Book {author.name.split(' ')[0]}
+            {t('Book {name}', { name: author.name.split(' ')[0] })}
           </button>
         </div>
       )}
@@ -371,24 +372,24 @@ function PostCard({ post, promoted = false }: { post: Post; promoted?: boolean }
         </button>
         {mine && !flags.isBoosted(post.id) && (
           <button className="action boost" onClick={() => setBoosting(true)}>
-            <Icon name="star" size={16} /> Boost
+            <Icon name="star" size={16} /> {t('Boost')}
           </button>
         )}
-        {mine && flags.isBoosted(post.id) && <span className="action is-on">Boosted</span>}
+        {mine && flags.isBoosted(post.id) && <span className="action is-on">{t('Boosted')}</span>}
         {mine ? (
           confirming ? (
             <span className="push msg-confirm">
-              <button className="link-danger" onClick={() => deletePost(post.id)}>Delete post</button>
-              <button onClick={() => setConfirming(false)}>Cancel</button>
+              <button className="link-danger" onClick={() => deletePost(post.id)}>{t('Delete post')}</button>
+              <button onClick={() => setConfirming(false)}>{t('Cancel')}</button>
             </span>
           ) : (
-            <button className="action push" onClick={() => setConfirming(true)} aria-label="Delete post">
+            <button className="action push" onClick={() => setConfirming(true)} aria-label={t('Delete post')}>
               <Icon name="trash" size={17} />
             </button>
           )
         ) : (
           <button className="action push" onClick={message}>
-            <Icon name="chat" size={18} /> Message
+            <Icon name="chat" size={18} /> {t('Message')}
           </button>
         )}
       </footer>
@@ -402,7 +403,7 @@ function PostCard({ post, promoted = false }: { post: Post; promoted?: boolean }
               <div key={c.id} className="comment">
                 <Avatar person={who} size={28} />
                 <div className="comment-bubble">
-                  {who.id !== meId && <SafetyMenu target={{ userId: who.id, name: who.name, type: 'comment', id: c.id }} label="Report or block" />}
+                  {who.id !== meId && <SafetyMenu target={{ userId: who.id, name: who.name, type: 'comment', id: c.id }} label={t('Report or block')} />}
                   <span className="strong small">{who.name}</span> <span className="muted small">{timeAgo(c.at)}</span>
                   <p>{c.text}</p>
                 </div>
@@ -414,10 +415,10 @@ function PostCard({ post, promoted = false }: { post: Post; promoted?: boolean }
               value={reply}
               onChange={(e) => setReply(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && send()}
-              placeholder="Write a reply…"
-              aria-label="Write a reply"
+              placeholder={t('Write a reply…')}
+              aria-label={t('Write a reply')}
             />
-            <button className="icon-btn ghost" onClick={send} aria-label="Send reply" disabled={!reply.trim()}>
+            <button className="icon-btn ghost" onClick={send} aria-label={t('Send reply')} disabled={!reply.trim()}>
               <Icon name="send" size={17} />
             </button>
           </div>

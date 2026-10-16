@@ -6,22 +6,23 @@ import { useStore } from '../store';
 import { SignInPrompt } from '../components/SignInPrompt';
 import { Icon } from '../components/Icon';
 import { PromoteOptions } from '../components/PromoteOptions';
+import { locale, t } from '../i18n';
 
 const STATUS: Record<MyPromotion['status'], { label: string; tone: 'good' | 'wait' | 'off' }> = {
-  pending: { label: 'Waiting for payment', tone: 'wait' },
-  active: { label: 'Active', tone: 'good' },
-  past_due: { label: 'Payment failed', tone: 'off' },
-  canceled: { label: 'Canceled', tone: 'off' },
-  expired: { label: 'Ended', tone: 'off' },
+  pending: { get label() { return t('Waiting for payment'); }, tone: 'wait' },
+  active: { get label() { return t('Active'); }, tone: 'good' },
+  past_due: { get label() { return t('Payment failed'); }, tone: 'off' },
+  canceled: { get label() { return t('Canceled'); }, tone: 'off' },
+  expired: { get label() { return t('Ended'); }, tone: 'off' },
 };
 
 const fmtDate = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+  iso ? new Date(iso).toLocaleDateString(locale(), { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
 
 /** Your paid promotions: see what's running, and cancel. */
 export function PromotionsPage() {
   const { signedIn } = useStore();
-  return signedIn ? <PromotionsPageContent /> : <SignInPrompt icon="star" title="Your promotions" text="Sign in to promote your posts and profile." />;
+  return signedIn ? <PromotionsPageContent /> : <SignInPrompt icon="star" title={t('Your promotions')} text="Sign in to promote your posts and profile." />;
 }
 
 function PromotionsPageContent() {
@@ -63,7 +64,7 @@ function PromotionsPageContent() {
       load();
       refreshPromotions();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Couldn’t cancel. Try again.');
+      setError(e instanceof Error ? t(e.message) : 'Couldn’t cancel. Try again.');
     } finally {
       setCancelling(null);
       setConfirming(null);
@@ -75,25 +76,25 @@ function PromotionsPageContent() {
   return (
     <div className="page promotions">
       <header className="feed-head">
-        <h1>Your promotions</h1>
+        <h1>{t('Your promotions')}</h1>
         <button className="btn primary" onClick={() => setChoosing(true)}>
-          <Icon name="plus" size={16} /> Promote
+          <Icon name="plus" size={16} /> {t('Promote')}
         </button>
       </header>
 
       {checkout === 'success' && (
         <div className="banner is-good">
           <Icon name="star" size={18} filled />
-          <span>Payment received. Your promotion switches on as soon as Stripe confirms it, usually within a few seconds.</span>
-          <button className="icon-btn ghost" onClick={() => setParams({})} aria-label="Dismiss">
+          <span>{t('Payment received. Your promotion switches on as soon as Stripe confirms it, usually within a few seconds.')}</span>
+          <button className="icon-btn ghost" onClick={() => setParams({})} aria-label={t('Dismiss')}>
             <Icon name="close" size={16} />
           </button>
         </div>
       )}
       {checkout === 'canceled' && (
         <div className="banner">
-          <span>Checkout was canceled. You weren’t charged.</span>
-          <button className="icon-btn ghost" onClick={() => setParams({})} aria-label="Dismiss">
+          <span>{t('Checkout was canceled. You weren’t charged.')}</span>
+          <button className="icon-btn ghost" onClick={() => setParams({})} aria-label={t('Dismiss')}>
             <Icon name="close" size={16} />
           </button>
         </div>
@@ -101,28 +102,28 @@ function PromotionsPageContent() {
       {!live && (
         <div className="banner">
           <span>
-            Promotions turn on once the site is connected to Supabase and Stripe. Follow <strong>SETUP.md</strong> in the project folder.
+            {t('Promotions turn on once the site is connected to Supabase and Stripe. Follow SETUP.md in the project folder.')}
           </span>
         </div>
       )}
       {error && <p className="field-note is-bad">{error}</p>}
 
       {items === null ? (
-        <p className="empty">Loading…</p>
+        <p className="empty">{t('Loading…')}</p>
       ) : visible.length === 0 ? (
         <div className="empty-promos">
-          <p className="empty">You haven’t promoted anything yet.</p>
+          <p className="empty">{t('You haven’t promoted anything yet.')}</p>
           <div className="price-strip">
-            {(Object.keys(PRICING) as (keyof typeof PRICING)[]).map((t) => (
-              <div key={t} className="price-card">
+            {(Object.keys(PRICING) as (keyof typeof PRICING)[]).map((type) => (
+              <div key={type} className="price-card">
                 <div className="price-top">
-                  <strong>{PRICING[t].name}</strong>
-                  <span className="launch">{LAUNCH_LABEL}</span>
+                  <strong>{PRICING[type].name}</strong>
+                  <span className="launch">{t(LAUNCH_LABEL)}</span>
                 </div>
                 <div className="price-amount">
-                  {PRICING[t].price} <span>{PRICING[t].per}</span>
+                  {PRICING[type].price} <span>{PRICING[type].per}</span>
                 </div>
-                <p>{PRICING[t].blurb}</p>
+                <p>{PRICING[type].blurb}</p>
               </div>
             ))}
           </div>
@@ -141,40 +142,40 @@ function PromotionsPageContent() {
                     {p.type === 'boost_post'
                       ? post
                         ? `“${post.text.slice(0, 70)}${post.text.length > 70 ? '…' : ''}”`
-                        : 'A post'
-                      : 'Your profile'}
+                        : t('A post')
+                      : t('Your profile')}
                   </span>
                   <span className="muted small">
-                    {PRICING[p.type].price} {PRICING[p.type].per} · {LAUNCH_LABEL}
+                    {PRICING[p.type].price} {PRICING[p.type].per} · {t(LAUNCH_LABEL)}
                   </span>
                 </div>
                 <div className="promo-side">
                   <span className={`status is-${status.tone}`}>{status.label}</span>
                   {p.status === 'active' && (
                     <span className="muted small">
-                      {p.cancelAtPeriodEnd ? 'Ends' : p.type === 'boost_post' ? 'Ends' : 'Renews'} {fmtDate(p.endsAt)}
+                      {t(p.cancelAtPeriodEnd || p.type === 'boost_post' ? 'Ends {date}' : 'Renews {date}', { date: fmtDate(p.endsAt) })}
                     </span>
                   )}
                   {canCancel &&
                     (confirming === p.id ? (
                       <span className="promo-confirm">
                         <span className="small">
-                          {p.type === 'boost_post' ? 'Stop the boost now? No refund.' : 'Stop renewing? It stays on until the end of this period.'}
+                          {p.type === 'boost_post' ? t('Stop the boost now? No refund.') : t('Stop renewing? It stays on until the end of this period.')}
                         </span>
                         <button className="btn danger" onClick={() => cancel(p)} disabled={cancelling === p.id}>
-                          {cancelling === p.id ? 'Canceling…' : 'Yes, cancel'}
+                          {cancelling === p.id ? t('Canceling…') : t('Yes, cancel')}
                         </button>
                         <button className="btn" onClick={() => setConfirming(null)}>
-                          Keep it
+                          {t('Keep it')}
                         </button>
                       </span>
                     ) : (
                       <button className="btn" onClick={() => setConfirming(p.id)}>
-                        Cancel
+                        {t('Cancel')}
                       </button>
                     ))}
                   {p.status === 'past_due' && (
-                    <span className="small muted">Update your card by promoting again, or contact support.</span>
+                    <span className="small muted">{t('Update your card by promoting again, or contact support.')}</span>
                   )}
                 </div>
               </li>
@@ -184,7 +185,7 @@ function PromotionsPageContent() {
       )}
 
       <p className="field-note">
-        To boost a specific post, open <Link to="/feed">Community</Link> and use Boost on one of your posts.
+        {t('To boost a specific post, open Community and use Boost on one of your posts.')} <Link to="/feed">{t('Community')}</Link>
       </p>
 
       {choosing && <PromoteOptions onClose={() => setChoosing(false)} />}

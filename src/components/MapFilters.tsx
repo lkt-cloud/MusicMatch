@@ -4,6 +4,7 @@ import type { Creative, Role } from '../data/types';
 import { formatRadius, milesBetween, reaches } from '../map/shared';
 import { useStore } from '../store';
 import { Icon, RoleIcon } from './Icon';
+import { plural, t } from '../i18n';
 
 export type Filters = {
   /** Only people within this many miles of you; null = anywhere. */
@@ -33,11 +34,11 @@ export function matches(c: Creative, f: Filters, me: Creative) {
 // Slider stops: non-linear so short distances are easy to pick.
 const STOPS = [1, 5, 10, 15, 25, 50, 75, 100, 150, 250, 500, 1000];
 const SERVICE: Record<Role, string> = {
-  producer: 'Beats & production',
-  engineer: 'Mixing & mastering',
-  studio: 'Studio time',
-  videographer: 'Music videos',
-  artist: 'Artists & features',
+  get producer() { return t('Beats & production'); },
+  get engineer() { return t('Mixing & mastering'); },
+  get studio() { return t('Studio time'); },
+  get videographer() { return t('Music videos'); },
+  get artist() { return t('Artists & features'); },
 };
 
 const toggle = <T,>(list: T[], item: T) => (list.includes(item) ? list.filter((x) => x !== item) : [...list, item]);
@@ -60,10 +61,10 @@ export function FilterPanel({
   const stop = value.miles == null ? STOPS.length : STOPS.indexOf(value.miles);
 
   return (
-    <div className="filter-panel" role="dialog" aria-label="Filters">
+    <div className="filter-panel" role="dialog" aria-label={t('Filters')}>
       <div className="filter-head">
-        <h2>Filters</h2>
-        <button className="icon-btn ghost" onClick={onClose} aria-label="Close filters">
+        <h2>{t('Filters')}</h2>
+        <button className="icon-btn ghost" onClick={onClose} aria-label={t('Close filters')}>
           <Icon name="close" size={18} />
         </button>
       </div>
@@ -71,15 +72,15 @@ export function FilterPanel({
       {!located && (
         <section className="filter-section">
           <div className="filter-label">
-            <span><Icon name="radius" size={16} /> Distance from you</span>
+            <span><Icon name="radius" size={16} /> {t('Distance from you')}</span>
           </div>
-          <p className="field-note">Tap the location button on the map (or sign in) to filter by distance.</p>
+          <p className="field-note">{t('Tap the location button on the map (or sign in) to filter by distance.')}</p>
         </section>
       )}
       {located && <section className="filter-section">
         <div className="filter-label">
-          <span><Icon name="radius" size={16} /> Distance from you</span>
-          <strong>{value.miles == null ? 'Anywhere' : `Within ${formatRadius(value.miles)}`}</strong>
+          <span><Icon name="radius" size={16} /> {t('Distance from you')}</span>
+          <strong>{value.miles == null ? t('Anywhere') : t('Within {radius}', { radius: formatRadius(value.miles) })}</strong>
         </div>
         <input
           type="range"
@@ -93,24 +94,24 @@ export function FilterPanel({
           }}
           style={{ ['--pct' as string]: `${(stop / STOPS.length) * 100}%` }}
           className="range-input"
-          aria-label="Distance from you"
-          aria-valuetext={value.miles == null ? 'Anywhere' : formatRadius(value.miles)}
+          aria-label={t('Distance from you')}
+          aria-valuetext={value.miles == null ? t('Anywhere') : formatRadius(value.miles)}
         />
         <div className="range-scale small muted">
           <span>{formatRadius(1)}</span>
-          <span>from {me.city || 'you'}</span>
-          <span>Anywhere</span>
+          <span>{me.city ? t('from {city}', { city: me.city }) : t('from you')}</span>
+          <span>{t('Anywhere')}</span>
         </div>
         <label className="check">
           <input type="checkbox" checked={value.comesToMe} onChange={(e) => set({ comesToMe: e.target.checked })} />
-          <span>Only people who’ll travel to me</span>
+          <span>{t('Only people who’ll travel to me')}</span>
         </label>
       </section>}
 
       <section className="filter-section">
         <div className="filter-label">
-          <span><Icon name="headphones" size={16} /> Services</span>
-          {value.roles.length > 0 && <button className="link" onClick={() => set({ roles: [] })}>Clear</button>}
+          <span><Icon name="headphones" size={16} /> {t('Services')}</span>
+          {value.roles.length > 0 && <button className="link" onClick={() => set({ roles: [] })}>{t('Clear')}</button>}
         </div>
         <div className="service-grid">
           {ROLES.map((r) => {
@@ -136,8 +137,8 @@ export function FilterPanel({
 
       <section className="filter-section">
         <div className="filter-label">
-          <span><Icon name="notes" size={16} /> Genres</span>
-          {value.genres.length > 0 && <button className="link" onClick={() => set({ genres: [] })}>Clear</button>}
+          <span><Icon name="notes" size={16} /> {t('Genres')}</span>
+          {value.genres.length > 0 && <button className="link" onClick={() => set({ genres: [] })}>{t('Clear')}</button>}
         </div>
         <div className="chips genre-picker">
           {GENRES.map((g) => {
@@ -161,16 +162,16 @@ export function FilterPanel({
       <section className="filter-section">
         <label className="check">
           <input type="checkbox" checked={value.availableOnly} onChange={(e) => set({ availableOnly: e.target.checked })} />
-          <span>Available now only</span>
+          <span>{t('Available now only')}</span>
         </label>
       </section>
 
       <div className="filter-foot">
         <button className="btn" onClick={() => onChange(NO_FILTERS)} disabled={!countFilters(value)}>
-          Clear all
+          {t('Clear all')}
         </button>
         <button className="btn primary" onClick={onClose}>
-          Show {resultCount} {resultCount === 1 ? 'creative' : 'creatives'}
+          {plural(resultCount, 'Show {n} creative', 'Show {n} creatives')}
         </button>
       </div>
     </div>
@@ -185,7 +186,7 @@ export function ActiveFilters({ value, onChange }: { value: Filters; onChange: (
     <div className="active-filters">
       {value.miles != null && (
         <button className="pill range-pill" onClick={() => set({ miles: null })}>
-          <Icon name="radius" size={13} /> Within {formatRadius(value.miles)} <Icon name="close" size={11} />
+          <Icon name="radius" size={13} /> {t('Within {radius}', { radius: formatRadius(value.miles) })} <Icon name="close" size={11} />
         </button>
       )}
       {value.roles.map((r) => (
@@ -200,15 +201,15 @@ export function ActiveFilters({ value, onChange }: { value: Filters; onChange: (
       ))}
       {value.comesToMe && (
         <button className="pill" onClick={() => set({ comesToMe: false })}>
-          Travels to me <Icon name="close" size={11} />
+          {t('Travels to me')} <Icon name="close" size={11} />
         </button>
       )}
       {value.availableOnly && (
         <button className="pill" onClick={() => set({ availableOnly: false })}>
-          Available now <Icon name="close" size={11} />
+          {t('Available now')} <Icon name="close" size={11} />
         </button>
       )}
-      <button className="pill clear" onClick={() => onChange(NO_FILTERS)}>Clear all</button>
+      <button className="pill clear" onClick={() => onChange(NO_FILTERS)}>{t('Clear all')}</button>
     </div>
   );
 }

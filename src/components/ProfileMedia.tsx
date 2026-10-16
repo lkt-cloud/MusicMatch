@@ -4,6 +4,7 @@ import type { Creative } from '../data/types';
 import { useStore } from '../store';
 import { Icon } from './Icon';
 import { ImageCropper } from './ImageCropper';
+import { t } from '../i18n';
 
 type CropShape = { aspect: number; round?: boolean; outputWidth: number; title: string };
 
@@ -17,7 +18,7 @@ function useImageUpload(field: 'avatarId' | 'bannerId', crop: CropShape) {
 
   const onPick = (file: File | undefined) => {
     if (!file) return;
-    if (!file.type.startsWith('image/')) return setError('Pick a photo (JPG, PNG, WebP or GIF).');
+    if (!file.type.startsWith('image/')) return setError(t('Pick a photo (JPG, PNG, WebP or GIF).'));
     setError(null);
     setCropping(file);
   };
@@ -30,7 +31,7 @@ function useImageUpload(field: 'avatarId' | 'bannerId', crop: CropShape) {
       releaseImage(me[field]);
       updateMe({ [field]: id });
     } catch {
-      setError('Couldn’t save that photo. Try again.');
+      setError(t('Couldn’t save that photo. Try again.'));
     } finally {
       setBusy(false);
     }
@@ -63,7 +64,7 @@ function useImageUpload(field: 'avatarId' | 'bannerId', crop: CropShape) {
 /** Profile banner: the uploaded photo, or a generated cover. Editable on your own profile. */
 export function ProfileCover({ person, editable, children }: { person: Creative; editable: boolean; children?: ReactNode }) {
   const photo = useSharedFileUrl(person.bannerId);
-  const upload = useImageUpload('bannerId', { aspect: 18 / 7, outputWidth: 1800, title: 'Crop banner' });
+  const upload = useImageUpload('bannerId', { aspect: 18 / 7, outputWidth: 1800, get title() { return t('Crop banner'); } });
   return (
     <div className={`profile-cover${photo ? ' has-photo' : ''}`}>
       {photo ? <img className="cover-img" src={photo} alt="" /> : children}
@@ -71,10 +72,10 @@ export function ProfileCover({ person, editable, children }: { person: Creative;
         <div className="cover-edit">
           {upload.picker}
           <button type="button" className="media-btn" onClick={upload.open} disabled={upload.busy}>
-            <Icon name="image" size={16} /> {upload.busy ? 'Uploading…' : upload.has ? 'Change banner' : 'Add banner'}
+            <Icon name="image" size={16} /> {upload.busy ? t('Uploading…') : upload.has ? t('Change banner') : t('Add banner')}
           </button>
           {upload.has && (
-            <button type="button" className="media-btn" onClick={upload.remove} aria-label="Remove banner">
+            <button type="button" className="media-btn" onClick={upload.remove} aria-label={t('Remove banner')}>
               <Icon name="trash" size={15} />
             </button>
           )}
@@ -87,18 +88,18 @@ export function ProfileCover({ person, editable, children }: { person: Creative;
 
 /** Wraps your avatar with a "change photo" button. */
 export function AvatarEditor({ children }: { children: ReactNode }) {
-  const upload = useImageUpload('avatarId', { aspect: 1, round: true, outputWidth: 512, title: 'Crop profile picture' });
+  const upload = useImageUpload('avatarId', { aspect: 1, round: true, outputWidth: 512, get title() { return t('Crop profile picture'); } });
   return (
     <div className="avatar-editor">
       {children}
       {upload.picker}
-      <button type="button" className="avatar-change" onClick={upload.open} disabled={upload.busy} aria-label="Change profile picture">
+      <button type="button" className="avatar-change" onClick={upload.open} disabled={upload.busy} aria-label={t('Change profile picture')}>
         <Icon name="image" size={18} />
-        <span>{upload.busy ? '…' : upload.has ? 'Change' : 'Add photo'}</span>
+        <span>{upload.busy ? '…' : upload.has ? t('Change') : t('Add photo')}</span>
       </button>
       {upload.has && (
         <button type="button" className="avatar-remove" onClick={upload.remove}>
-          Remove photo
+          {t('Remove photo')}
         </button>
       )}
       {upload.error && <span className="media-error">{upload.error}</span>}

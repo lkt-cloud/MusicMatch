@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { t } from '../i18n';
 
 /**
  * Shows which way north is on the flat map. Tap to turn north back up; drag around it to
@@ -12,8 +13,8 @@ export function Compass({ degrees, onRotate, onReset }: { degrees: number; onRot
   return (
     <button
       className="icon-btn compass"
-      aria-label={Math.abs(degrees) > 1 ? 'Turn the map so north is up' : 'Compass: drag to rotate the map'}
-      title="Drag to rotate · tap to face north"
+      aria-label={Math.abs(degrees) > 1 ? t('Turn the map so north is up') : t('Compass: drag to rotate the map')}
+      title={t('Drag to rotate · tap to face north')}
       onPointerDown={(e) => {
         const r = e.currentTarget.getBoundingClientRect();
         drag.current = { cx: r.left + r.width / 2, cy: r.top + r.height / 2, last: 0, moved: false };

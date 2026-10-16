@@ -1,4 +1,4 @@
-import { StrictMode } from 'react';
+import { StrictMode, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { StoreProvider } from './store';
@@ -16,16 +16,24 @@ import { BookingsPage } from './pages/BookingsPage';
 import { AdminPage } from './pages/AdminPage';
 import { registerServiceWorker } from './push';
 import { LIVE } from './backend/client';
-import { applyAppearance } from './settings';
+import { applyAppearance, useSettings } from './settings';
+import { resolveLang } from './i18n';
 import './styles.css';
 
 applyAppearance();
+
+/** Redraws everything below it when the language changes, so all text switches at once. */
+function LanguageRoot({ children }: { children: ReactNode }) {
+  const { language } = useSettings();
+  return <div key={resolveLang(language)} style={{ display: 'contents' }}>{children}</div>;
+}
 // Shows push notifications in browsers (see public/sw.js).
 if (LIVE) registerServiceWorker();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <StoreProvider>
+      <LanguageRoot>
       <BrowserRouter>
         <Routes>
           <Route element={<Layout />}>
@@ -45,6 +53,7 @@ createRoot(document.getElementById('root')!).render(
           </Route>
         </Routes>
       </BrowserRouter>
+      </LanguageRoot>
     </StoreProvider>
   </StrictMode>,
 );

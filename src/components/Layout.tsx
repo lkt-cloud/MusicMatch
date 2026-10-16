@@ -4,6 +4,7 @@ import { useStore } from '../store';
 import { Icon, type IconName } from './Icon';
 import { LogoMark } from './LogoMark';
 import { Avatar } from './Avatar';
+import { Onboarding } from './Onboarding';
 
 const NAV: { to: string; label: string; icon: IconName }[] = [
   { to: '/', label: 'Map', icon: 'map' },
@@ -62,6 +63,7 @@ export function Layout() {
         <Outlet />
       </main>
       <InAppBanner />
+      <Onboarding />
     </div>
   );
 }

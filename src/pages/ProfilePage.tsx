@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { ROLES, canPromote, hasRole, ratesOf, roleInfo, rolesOf, travels } from '../data/roles';
+import { ROLES, canPromote, hasRole, ratesOf, roleInfo, rolePatch, rolesOf, travels } from '../data/roles';
 import { countryName, flag, loadCities } from '../data/places';
 import { PLATFORMS, normalizeSocialUrl, platformInfo } from '../data/socials';
 import type { Creative, Role, SocialPlatform } from '../data/types';
@@ -22,6 +22,7 @@ import { usePromotionFlags } from '../backend/promotions';
 import { AttachmentView } from '../components/AttachmentView';
 import { SafetyMenu } from '../components/Safety';
 import { BookingEditor, BookingTimes } from '../components/Booking';
+import { FinishSetupCard } from '../components/Onboarding';
 
 const REVIEWS = [
   { by: 'lilmerit', text: 'Easy to work with and fast. The final product was better than I pictured.', days: 12 },
@@ -72,6 +73,7 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
 
   return (
     <div className="page profile">
+      {mine && <FinishSetupCard />}
       <section className="card profile-card">
         {mine && (
           <Link to="/settings" className="icon-btn profile-gear" aria-label="Settings">
@@ -338,20 +340,7 @@ function EditForm() {
   const { me, updateMe } = useStore();
   const set = (patch: Partial<Creative>) => updateMe(patch);
 
-  // Keeps the travel radius and studio address in step with whatever roles are picked.
-  const setRoles = (role: Role, alsoRoles: Role[]) => {
-    const all = [role, ...alsoRoles];
-    // Rates follow their role, so swapping the main role keeps every price in place.
-    const rates: Partial<Record<Role, string>> = { ...me.roleRates, [me.role]: me.rate };
-    set({
-      role,
-      alsoRoles: alsoRoles.filter((r) => r !== role),
-      rate: rates[role] ?? '',
-      roleRates: Object.fromEntries(alsoRoles.filter((r) => r !== role && rates[r]).map((r) => [r, rates[r]])),
-      travelMiles: travels(all) ? me.travelMiles ?? 25 : undefined,
-      address: all.includes('studio') ? me.address : undefined,
-    });
-  };
+  const setRoles = (role: Role, alsoRoles: Role[]) => set(rolePatch(me, role, alsoRoles));
 
   return (
     <div className="edit-form">

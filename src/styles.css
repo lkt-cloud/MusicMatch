@@ -1402,3 +1402,34 @@ button, .nav-link, .chip { -webkit-user-select: none; user-select: none; touch-a
 .notice-kind { position: absolute; left: 38px; top: 38px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: var(--on-accent); box-shadow: 0 0 0 2px var(--bg); }
 .notice:not(:has(.avatar)) .notice-kind { display: none; }
 .notice-kind.kind-booking_declined, .notice-kind.kind-booking_cancelled { background: var(--surface-3); color: var(--text-2); }
+
+/* ---------- First-time setup ---------- */
+
+.setup-backdrop { z-index: 110; }
+.setup { width: min(480px, 100%); gap: 18px; }
+.setup-top { display: flex; align-items: center; justify-content: space-between; }
+.setup-dots { display: flex; gap: 6px; }
+.setup-dots span { width: 28px; height: 4px; border-radius: 2px; background: var(--surface-3); transition: background 0.2s; }
+.setup-dots span.is-on { background: var(--accent); }
+.setup-head h2 { font-size: 22px; margin-bottom: 4px; }
+.setup-head .promote-sub { margin-top: 0; }
+.setup-body { display: flex; flex-direction: column; gap: 16px; }
+.setup-field { display: flex; flex-direction: column; gap: 6px; }
+.setup-field input, .setup-field select {
+  width: 100%; height: 44px; padding: 0 12px; border-radius: var(--r-sm); border: 1px solid var(--line);
+  background: var(--bg); color: var(--text); font: inherit; font-size: 16px;
+}
+.setup-field input:focus, .setup-field select:focus { outline: 0; border-color: var(--accent); }
+.setup-roles { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+.setup-role {
+  display: flex; align-items: center; gap: 10px; padding: 14px; border-radius: var(--r-md);
+  border: 1.5px solid var(--line); background: var(--bg); font-weight: 700; font-size: 15px; color: var(--text);
+  transition: border-color 0.15s, background 0.15s;
+}
+.setup-role svg { color: var(--text-2); }
+@media (hover: hover) { .setup-role:hover { border-color: var(--line-strong); } }
+.setup-role.is-on { border-color: var(--accent); background: var(--accent-soft); }
+.setup-role.is-on svg { color: var(--accent); }
+.setup-photo { display: flex; justify-content: center; padding: 12px 0; }
+.setup-card { margin-bottom: 16px; }
+.field-note svg { vertical-align: -2px; }

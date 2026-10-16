@@ -24,6 +24,24 @@ export const ratesOf = (c: Pick<Creative, 'role' | 'alsoRoles' | 'rate' | 'roleR
 const TRAVELING: Role[] = ['producer', 'videographer', 'engineer'];
 export const travels = (roles: Role[]) => roles.some((r) => TRAVELING.includes(r));
 
+/**
+ * The profile changes for a new set of roles: rates follow their role (so swapping the main
+ * role keeps every price in place), and the travel radius and studio address come and go with
+ * the roles that use them.
+ */
+export function rolePatch(me: Creative, role: Role, alsoRoles: Role[]): Partial<Creative> {
+  const all = [role, ...alsoRoles];
+  const rates: Partial<Record<Role, string>> = { ...me.roleRates, [me.role]: me.rate };
+  return {
+    role,
+    alsoRoles: alsoRoles.filter((r) => r !== role),
+    rate: rates[role] ?? '',
+    roleRates: Object.fromEntries(alsoRoles.filter((r) => r !== role && rates[r]).map((r) => [r, rates[r]])),
+    travelMiles: travels(all) ? me.travelMiles ?? 25 : undefined,
+    address: all.includes('studio') ? me.address : undefined,
+  };
+}
+
 /** Roles that sell a visual service and can promote it with a photo or video. */
 const PROMOTERS: Role[] = ['studio', 'engineer', 'videographer'];
 export const canPromote = (c: Pick<Creative, 'role' | 'alsoRoles'>) => rolesOf(c).some((r) => PROMOTERS.includes(r));

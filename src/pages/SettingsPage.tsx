@@ -128,7 +128,7 @@ export function SettingsPage() {
             </button>
           </div>
         )}
-        {account && <AccountRows signOut={signOut} />}
+        {account && <AccountRows />}
         <Row label="Profile" note="Name, roles, rates, genres, location and links.">
           <Link className="btn" to="/me">
             {signedIn ? 'Edit profile' : 'Open'}
@@ -193,11 +193,17 @@ export function SettingsPage() {
       </Section>
 
       {account && <DeleteAccount />}
+
+      {signOut && (
+        <button className="btn danger block settings-signout" onClick={signOut}>
+          <Icon name="signout" size={18} /> Sign out
+        </button>
+      )}
     </div>
   );
 }
 
-function AccountRows({ signOut }: { signOut?: () => void }) {
+function AccountRows() {
   const [email, setEmail] = useState<string | null>(null);
   const [remember, setRemember] = useState(keepSignedIn);
   const [open, setOpen] = useState<'email' | 'password' | null>(null);
@@ -230,13 +236,6 @@ function AccountRows({ signOut }: { signOut?: () => void }) {
           label="Keep me signed in"
         />
       </Row>
-      {signOut && (
-        <Row label="Sign out" note="Signs you out on this device.">
-          <button className="btn" onClick={signOut}>
-            <Icon name="signout" size={16} /> Sign out
-          </button>
-        </Row>
-      )}
     </>
   );
 }

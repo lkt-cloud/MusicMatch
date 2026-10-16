@@ -30,7 +30,7 @@ const directionsUrl = ([lng, lat]: [number, number]) =>
 
 export function ProfilePage({ mine = false }: { mine?: boolean }) {
   const { id } = useParams();
-  const { me, meId, posts, person, findPerson, signOut, signedIn, located, requireSignIn, blocked, unblockUser, slotsOf } = useStore();
+  const { me, meId, posts, person, findPerson, signedIn, located, requireSignIn, blocked, unblockUser, slotsOf } = useStore();
   const flags = usePromotionFlags();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
@@ -123,11 +123,6 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
                   <Link className="btn" to="/promotions">
                     Your promotions
                   </Link>
-                )}
-                {!editing && signOut && (
-                  <button className="btn" onClick={signOut}>
-                    Sign out
-                  </button>
                 )}
               </>
             ) : (

@@ -1499,3 +1499,6 @@ button, .nav-link, .chip { -webkit-user-select: none; user-select: none; touch-a
 .booking-place-edit input { flex: 1; min-width: 180px; }
 .add-calendar { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .add-calendar-options { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Sign out: last thing in Settings, on its own. */
+.settings-signout { width: 100%; height: 48px; margin-top: 8px; font-size: 15px; }

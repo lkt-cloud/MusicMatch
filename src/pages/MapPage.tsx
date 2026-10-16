@@ -2,11 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { geoDistance } from 'd3-geo';
 import { FlatEarth } from '../map/FlatEarth';
-import { Globe } from '../map/Globe';
-import { AREA_MILES, EARTH_RADIUS_MI, LOCAL_ZOOM, MAX_ZOOM, formatDistance, formatRadius, milesBetween, reaches, type EarthHandle, type View } from '../map/shared';
+import { CountryMap, hasCountryMap } from '../map/CountryMap';
+import { CountryPicker } from '../components/CountryPicker';
+import { AREA_MILES, EARTH_RADIUS_MI, LOCAL_ZOOM, MAX_ZOOM, countryAt, countryCenter, formatDistance, formatRadius, milesBetween, reaches, type EarthHandle, type View } from '../map/shared';
 import { ActiveFilters, FilterPanel, NO_FILTERS, countFilters, matches, type Filters } from '../components/MapFilters';
 import { CITY_NAMES, cityCoords, cityCountry } from '../data/creatives';
-import { cityName } from '../data/places';
+import { cityName, countryName } from '../data/places';
 import { hasRole, roleInfo, rolesOf } from '../data/roles';
 import type { Creative } from '../data/types';
 import { useStore } from '../store';
@@ -22,11 +23,26 @@ import { SocialLinks } from '../components/SocialLinks';
 import { GenreChips } from '../components/Genres';
 import { plural, t } from '../i18n';
 
+/** The phone's or browser's region (e.g. ja-JP → JP), for guests' first country. */
+function deviceRegion() {
+  try {
+    const region = new Intl.Locale(navigator.language).maximize().region;
+    if (region && /^[A-Z]{2}$/.test(region)) return region;
+  } catch {
+    // older browsers
+  }
+  return 'US';
+}
+
+// The country picked on the map lasts while the app is open (leaving the map and coming back
+// keeps it), but each new visit starts on your own country.
+let sessionCountry: string | null = null;
+
 const nearestCity = (p: [number, number]) =>
   CITY_NAMES.reduce((best, c) => (geoDistance(cityCoords(c), p) < geoDistance(cityCoords(best), p) ? c : best));
 
 export function MapPage() {
-  const { me, mapMode, setMapMode, creatives, located, requireSignIn, setDeviceLocation, findPerson, loadArea, searchPeople } = useStore();
+  const { me, mapMode, setMapMode, creatives, located, signedIn, requireSignIn, setDeviceLocation, findPerson, loadArea, searchPeople } = useStore();
   const navigate = useNavigate();
   const earth = useRef<EarthHandle>(null);
   const [northDeg, setNorthDeg] = useState(0); // flat map rotation, for the compass
@@ -39,11 +55,23 @@ export function MapPage() {
   const focusId = params.get('focus');
   const focused = (focusId && findPerson(focusId)) || undefined;
   const [selectedId, setSelectedId] = useState<string | null>(focused?.id ?? null);
-  const [view, setView] = useState<{ visible: Creative[]; center: [number, number]; zoom: number }>({
+  const [view, setView] = useState<{ visible: Creative[]; center: [number, number]; zoom: number; whole: boolean; ready: boolean }>({
     visible: [],
     center: [0, 90],
     zoom: 1,
+    whole: true,
+    ready: false,
   });
+
+  // Which country the country map shows: your profile's, a guest's phone region, or one picked.
+  const home = signedIn && me.city ? me.country : deviceRegion();
+  const [mapCountry, setMapCountryState] = useState(() => focused?.country ?? sessionCountry ?? home);
+  const setMapCountry = (code: string) => {
+    sessionCountry = code;
+    setMapCountryState(code);
+  };
+  // Countries without an outline of their own fall back to the flat map.
+  const countryMode = mapMode === 'country' && hasCountryMap(mapCountry);
   // Open on you: a "See on map" link wins, otherwise your profile location at city-and-neighbours zoom
   // (no flash of the whole world first). Device location, if shared, refines it below. Guests
   // start on the whole map until they share where they are.
@@ -63,6 +91,27 @@ export function MapPage() {
     if (areaCenter) loadArea(areaCenter);
   }, [areaCenter, loadArea]);
 
+  // On the country map the area follows what you're looking at: once the map settles a fair
+  // way from the current area, the people around the new spot are loaded and shown. Zoomed all
+  // the way out to the whole country, it stays put (the middle of a country is rarely anyone's spot).
+  useEffect(() => {
+    if (!countryMode || !view.ready || view.whole) return;
+    const timer = window.setTimeout(() => {
+      if (!areaCenter || milesBetween(view.center, areaCenter) > 60) setAreaCenter(view.center);
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [countryMode, view.ready, view.whole, view.center, areaCenter]);
+
+  /** Switches the country map (it re-fits); `at` opens it on a spot instead of the whole country. */
+  const switchCountry = (code: string, at?: View) => {
+    setSelectedId(null);
+    const isHome = code === home && located;
+    lastView.current = at ?? (isHome ? { center: me.coords, zoom: LOCAL_ZOOM } : undefined);
+    setAreaCenter(at?.center ?? (isHome ? me.coords : countryCenter(code)));
+    setView((v) => ({ ...v, visible: [], ready: false }));
+    setMapCountry(code);
+  };
+
   // Find you when the map opens. The prompt only ever appears once (see src/location.ts);
   // if it's refused or unavailable, the map stays on the location set in your profile.
   useEffect(() => {
@@ -73,7 +122,8 @@ export function MapPage() {
       if (!live || !('coords' in r)) return;
       setHere(r.coords);
       setDeviceLocation(r.coords);
-      earth.current?.flyTo(r.coords, LOCAL_ZOOM);
+      // On the country map, only if you're in the country it's showing.
+      if (mapMode !== 'country' || countryAt(r.coords) === mapCountry) earth.current?.flyTo(r.coords, LOCAL_ZOOM);
     });
     return () => {
       live = false;
@@ -83,8 +133,11 @@ export function MapPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const nearby = useMemo(
-    () => (areaCenter ? creatives.filter((c) => milesBetween(c.coords, areaCenter) <= AREA_MILES) : creatives),
-    [creatives, areaCenter],
+    () =>
+      creatives.filter(
+        (c) => (!areaCenter || milesBetween(c.coords, areaCenter) <= AREA_MILES) && (!countryMode || c.country === mapCountry),
+      ),
+    [creatives, areaCenter, countryMode, mapCountry],
   );
   const filtered = useMemo(() => nearby.filter((c) => matches(c, filters, me)), [nearby, filters, me]);
   const filterCount = countFilters(filters);
@@ -101,9 +154,9 @@ export function MapPage() {
   }, [filters.miles, me.coords]);
   const selected = creatives.find((c) => c.id === selectedId) ?? null;
 
-  const onViewChange = useCallback((visible: Creative[], center: [number, number], zoom: number) => {
+  const onViewChange = useCallback((visible: Creative[], center: [number, number], zoom: number, whole = zoom < 5) => {
     lastView.current = { center, zoom };
-    setView({ visible, center, zoom });
+    setView({ visible, center, zoom, whole, ready: true });
   }, []);
 
   const flags = usePromotionFlags();
@@ -115,7 +168,11 @@ export function MapPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, flags, me.city]);
 
-  const place = view.zoom < 5 ? t('Everywhere') : t('Around {city}', { city: ((c) => cityName(c, cityCountry(c)))(nearestCity(view.center)) });
+  const place = view.whole
+    ? countryMode
+      ? countryName(mapCountry)
+      : t('Everywhere')
+    : t('Around {city}', { city: ((c) => cityName(c, cityCountry(c)))(nearestCity(view.center)) });
 
   const q = query.trim().toLowerCase();
   // Search looks through everyone, not just who's loaded: matches are fetched and then listed below.
@@ -135,10 +192,19 @@ export function MapPage() {
       ].slice(0, 7)
     : [];
 
+  /** Goes to a spot, switching the country map first if it's in another country. */
+  const goTo = (coords: [number, number], country: string, zoom: number) => {
+    if (countryMode && country && country !== mapCountry && hasCountryMap(country)) {
+      switchCountry(country, { center: coords, zoom });
+      return;
+    }
+    setAreaCenter(coords);
+    earth.current?.flyTo(coords, zoom);
+  };
+
   const focus = (c: Creative) => {
+    goTo(c.coords, c.country, 320);
     setSelectedId(c.id);
-    setAreaCenter(c.coords);
-    earth.current?.flyTo(c.coords, 320);
   };
 
   const locate = () => {
@@ -146,29 +212,42 @@ export function MapPage() {
       if (!('coords' in r)) return (here || located) && earth.current?.flyTo(here ?? me.coords, LOCAL_ZOOM);
       setHere(r.coords);
       setDeviceLocation(r.coords);
-      setAreaCenter(r.coords);
-      earth.current?.flyTo(r.coords, LOCAL_ZOOM);
+      goTo(r.coords, countryAt(r.coords) ?? mapCountry, LOCAL_ZOOM);
     });
   };
 
-  const Earth = mapMode === 'globe' ? Globe : FlatEarth;
-
   return (
     <div className="map-page">
-      <div className={`map-stage is-${mapMode}`}>
-        <Earth
-          key={mapMode}
-          ref={earth}
-          creatives={filtered}
-          me={me}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-          onViewChange={onViewChange}
-          initialView={lastView.current}
-          range={range}
-          here={here}
-          onRotate={setNorthDeg}
-        />
+      <div className={`map-stage is-${countryMode ? 'country' : 'flat'}`}>
+        {countryMode ? (
+          <CountryMap
+            key={`country:${mapCountry}`}
+            ref={earth}
+            country={mapCountry}
+            creatives={filtered}
+            me={me}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onViewChange={onViewChange}
+            initialView={lastView.current && countryAt(lastView.current.center) === mapCountry ? lastView.current : undefined}
+            range={range}
+            here={here}
+          />
+        ) : (
+          <FlatEarth
+            key="flat"
+            ref={earth}
+            creatives={filtered}
+            me={me}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onViewChange={onViewChange}
+            initialView={lastView.current}
+            range={range}
+            here={here}
+            onRotate={setNorthDeg}
+          />
+        )}
 
         <div className="map-top">
           <div className="map-top-row">
@@ -194,8 +273,7 @@ export function MapPage() {
                     <li key={r.city}>
                       <button
                         onClick={() => {
-                          setAreaCenter(cityCoords(r.city));
-                          earth.current?.flyTo(cityCoords(r.city), 140);
+                          goTo(cityCoords(r.city), cityCountry(r.city), 140);
                           setQuery('');
                         }}
                       >
@@ -243,19 +321,22 @@ export function MapPage() {
           />
         )}
 
-        <div className="mode-toggle" role="radiogroup" aria-label={t('Map style')}>
-          {(['globe', 'flat'] as const).map((m) => (
-            <button
-              key={m}
-              role="radio"
-              aria-checked={mapMode === m}
-              className={mapMode === m ? 'is-on' : ''}
-              onClick={() => setMapMode(m)}
-            >
-              <Icon name={m === 'flat' ? 'flat' : 'sphere'} size={17} />
-              {m === 'flat' ? t('Flat') : t('Globe')}
-            </button>
-          ))}
+        <div className="map-mode">
+          {mapMode === 'country' && <CountryPicker value={mapCountry} home={home} onChange={(code) => switchCountry(code)} />}
+          <div className="mode-toggle" role="radiogroup" aria-label={t('Map style')}>
+            {(['country', 'flat'] as const).map((m) => (
+              <button
+                key={m}
+                role="radio"
+                aria-checked={mapMode === m}
+                className={mapMode === m ? 'is-on' : ''}
+                onClick={() => setMapMode(m)}
+              >
+                <Icon name={m === 'flat' ? 'flat' : 'map'} size={17} />
+                {m === 'flat' ? t('Flat') : t('Country')}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="map-controls">

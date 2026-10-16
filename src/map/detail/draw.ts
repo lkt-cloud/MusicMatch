@@ -1,10 +1,8 @@
-// How the street-map detail is drawn: once as SVG path strings for the flat earth
-// (cached per tile, since that projection never changes), and straight to canvas for
-// the globe (redrawn as it turns).
+// How the street-map detail is drawn: as SVG path strings, cached per tile (each map's
+// projection never changes, and the country map uses its own copies of the tiles).
 
 import type { GeoPath, GeoPermissibleObjects } from 'd3-geo';
 import type { FeatureCollection } from 'geojson';
-import type { Counties } from './counties';
 import type { RoadClass, TileData } from './tiles';
 
 export const ROAD_ORDER: RoadClass[] = ['secondary', 'primary', 'trunk', 'motorway'];
@@ -56,56 +54,4 @@ export function tilePaths(tile: TileData, path: GeoPath): TilePaths {
     svgCache.set(tile, p);
   }
   return p;
-}
-
-/** Draws the detail onto the globe's canvas with the current projection. */
-export function drawDetail(
-  ctx: CanvasRenderingContext2D,
-  path: GeoPath<unknown, GeoPermissibleObjects>,
-  tiles: TileData[],
-  counties: Counties | null,
-  opts: { alpha: number; tileZ: number; landColor: (lat: number) => string; water: string; moving?: boolean },
-) {
-  if (!tiles.length) return;
-  // While the globe is being dragged, only the highways are drawn so it stays smooth.
-  const light = !!opts.moving;
-  ctx.save();
-  ctx.globalAlpha = opts.alpha;
-
-  // Each tile's square as land, then its water on top: sharper coasts and lakes than the base map.
-  for (const t of light ? [] : tiles) {
-    const ring = t.bounds.geometry.coordinates[0];
-    ctx.beginPath();
-    path(t.bounds);
-    ctx.fillStyle = opts.landColor((ring[0][1] + ring[Math.floor(ring.length / 2)][1]) / 2);
-    ctx.fill();
-    ctx.beginPath();
-    path(collection(t.water));
-    ctx.fillStyle = opts.water;
-    ctx.fill();
-  }
-
-  const stroke = (geom: GeoPermissibleObjects, width: number, color: string, dash: number[] = []) => {
-    ctx.beginPath();
-    path(geom);
-    ctx.setLineDash(dash);
-    ctx.lineWidth = width;
-    ctx.strokeStyle = color;
-    ctx.stroke();
-  };
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-
-  if (counties && !light) stroke(counties.lines, LINE_STYLE.county.width, LINE_STYLE.county.color, LINE_STYLE.county.dash);
-  for (const level of light ? [] : (['county', 'city', 'state'] as const)) {
-    const s = LINE_STYLE[level];
-    stroke(collection(tiles.flatMap((t) => t.boundaries[level])), s.width, s.color, s.dash);
-  }
-  for (const cls of roadsAt(opts.tileZ).filter((c) => !light || c === 'motorway' || c === 'trunk')) {
-    const s = ROAD_STYLE[cls];
-    const roads = collection(tiles.flatMap((t) => t.roads[cls]));
-    if (s.casing) stroke(roads, s.casing, 'rgba(40, 34, 24, 0.45)');
-    stroke(roads, s.width, s.color);
-  }
-  ctx.restore();
 }

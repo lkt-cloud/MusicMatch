@@ -75,7 +75,7 @@ export function SettingsPage() {
             value={mapMode}
             onChange={setMapMode}
             options={[
-              ['globe', 'Globe'],
+              ['country', 'Country'],
               ['flat', 'Flat'],
             ]}
           />

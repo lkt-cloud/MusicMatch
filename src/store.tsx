@@ -27,7 +27,7 @@ import { useSettings } from './settings';
 import { forgetDevice, setAppBadge, syncPush } from './push';
 import { resolveLang, t } from './i18n';
 
-export type MapMode = 'flat' | 'globe';
+export type MapMode = 'country' | 'flat';
 
 /** What every page reads. Demo mode and live (Supabase) mode both provide exactly this. */
 export type Store = {
@@ -163,13 +163,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   return LIVE ? <LiveGate>{children}</LiveGate> : <DemoProvider>{children}</DemoProvider>;
 }
 
-// The globe opens first. (v2: the old key remembered the flat map as the default, so it's not reused.)
-const MAP_MODE_KEY = 'music-match:map-mode-v2';
+// The country map opens first. (v3: earlier keys remembered the globe or the flat map as the
+// default, so they're not reused; everyone starts on the country map once.)
+const MAP_MODE_KEY = 'music-match:map-mode-v3';
 const readMapMode = (): MapMode => {
   try {
-    return localStorage.getItem(MAP_MODE_KEY) === 'flat' ? 'flat' : 'globe';
+    return localStorage.getItem(MAP_MODE_KEY) === 'flat' ? 'flat' : 'country';
   } catch {
-    return 'globe';
+    return 'country';
   }
 };
 const saveMapMode = (mode: MapMode) => {

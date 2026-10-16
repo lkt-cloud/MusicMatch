@@ -1,5 +1,6 @@
 import type { Ref } from 'react';
-import { geoCircle, geoDistance } from 'd3-geo';
+import { geoArea, geoBounds, geoCentroid, geoCircle, geoContains, geoDistance } from 'd3-geo';
+import type { Feature, MultiPolygon, Polygon, Position } from 'geojson';
 import { feature, merge, mesh } from 'topojson-client';
 import type { GeometryCollection, Topology } from 'topojson-specification';
 import world50 from 'world-atlas/countries-50m.json';
@@ -7,6 +8,7 @@ import world110 from 'world-atlas/countries-110m.json';
 import subdivisions from '../data/subdivisions.json';
 import type { Creative } from '../data/types';
 import { getSettings } from '../settings';
+import { NUMERIC } from '../data/country-codes';
 
 /**
  * Zoom that frames roughly 80 miles around a point: your city plus its neighbours.
@@ -36,8 +38,9 @@ export type EarthProps = {
   me: Creative;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
-  onViewChange?: (visible: Creative[], center: [number, number], zoom: number) => void;
-  /** Where to start, e.g. the view from before switching between flat and globe. */
+  /** `whole`: the country map is showing the whole country (zoomed all the way out). */
+  onViewChange?: (visible: Creative[], center: [number, number], zoom: number, whole?: boolean) => void;
+  /** Where to start, e.g. the view from before switching between the country and flat maps. */
   initialView?: View;
   /** Search radius drawn around a point (e.g. "within 25 mi of me"). */
   range?: { center: [number, number]; miles: number } | null;
@@ -61,7 +64,7 @@ function landLayers(world: unknown) {
 }
 
 export const DETAILED = landLayers(world50);
-/** Lighter outlines for drawing while the globe is moving. */
+/** Lighter outlines for drawing while the map is moving. */
 export const COARSE = landLayers(world110);
 
 /** US state and Canadian province lines. */
@@ -88,21 +91,6 @@ export const LAND_STOPS: [number, string][] = [
   [0.74, '#97a174'],
   [1, '#d5d9d0'],
 ];
-
-function hexToRgb(hex: string) {
-  const n = parseInt(hex.slice(1), 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
-
-export function landColorAt(f: number) {
-  const i = Math.max(0, LAND_STOPS.findIndex(([o]) => o >= f) - 1);
-  const [o0, c0] = LAND_STOPS[i];
-  const [o1, c1] = LAND_STOPS[Math.min(i + 1, LAND_STOPS.length - 1)];
-  const t = o1 === o0 ? 0 : (f - o0) / (o1 - o0);
-  const a = hexToRgb(c0);
-  const b = hexToRgb(c1);
-  return `rgb(${a.map((v, k) => Math.round(v + (b[k] - v) * t)).join(',')})`;
-}
 
 /** A circle on the earth's surface, `miles` in radius. */
 export const radiusCircle = (center: [number, number], miles: number) =>
@@ -134,3 +122,53 @@ export const formatDistance = (mi: number) => {
 
 /** A round radius (in miles), e.g. "25 mi" or "40 km". */
 export const formatRadius = (mi: number) => (useKm() ? `${Math.round(mi * KM_PER_MI)} km` : `${mi} mi`);
+
+// ------------------------------------------------------------------ countries
+
+type CountryShape = Feature<Polygon | MultiPolygon>;
+const topo50 = world50 as unknown as Topology<{ countries: GeometryCollection }>;
+const ALPHA2 = Object.fromEntries(Object.entries(NUMERIC).map(([a2, n]) => [n, a2]));
+
+// Every country's outline and bounding box, worked out once when first needed.
+let countries: { code: string; shape: CountryShape; box: [[number, number], [number, number]] }[] | null = null;
+const allCountries = () =>
+  (countries ??= topo50.objects.countries.geometries.flatMap((g) => {
+    const code = ALPHA2[String(g.id)];
+    if (!code) return [];
+    const shape = feature(topo50, g) as unknown as CountryShape;
+    return [{ code, shape, box: geoBounds(shape) as [[number, number], [number, number]] }];
+  }));
+
+/** A country's outline (ISO alpha-2), or null for the few tiny places the world map doesn't have. */
+export const countryShape = (code: string): CountryShape | null => allCountries().find((c) => c.code === code)?.shape ?? null;
+
+const inBox = ([lng, lat]: [number, number], [[w, s], [e, n]]: [[number, number], [number, number]]) =>
+  lat >= s && lat <= n && (w <= e ? lng >= w && lng <= e : lng >= w || lng <= e);
+
+/** Which country a point is in (ISO alpha-2), or null at sea. */
+export function countryAt(point: [number, number]): string | null {
+  for (const c of allCountries()) if (inBox(point, c.box) && geoContains(c.shape, point)) return c.code;
+  return null;
+}
+
+/** Middle of a country's main landmass, e.g. for loading people when switching to it. */
+export const countryCenter = (code: string): [number, number] | null => {
+  const shape = countryShape(code);
+  return shape ? (geoCentroid(mainland(shape)) as [number, number]) : null;
+};
+
+/**
+ * A country's main landmass: its biggest piece plus other large pieces near it, so far-off
+ * territories (Alaska, Hawaii, Okinawa, overseas departments) don't shrink the opening view.
+ */
+export function mainland(shape: CountryShape): Feature<MultiPolygon> {
+  const polys: Position[][][] = shape.geometry.type === 'Polygon' ? [shape.geometry.coordinates] : shape.geometry.coordinates;
+  const parts = polys.map((coordinates) => {
+    const poly: Polygon = { type: 'Polygon', coordinates };
+    return { coordinates, area: geoArea(poly), centroid: geoCentroid(poly) };
+  });
+  const biggest = parts.reduce((a, b) => (b.area > a.area ? b : a));
+  const NEAR_MILES = 1600;
+  const keep = parts.filter((p) => p.area >= biggest.area * 0.04 && geoDistance(p.centroid, biggest.centroid) * EARTH_RADIUS_MI <= NEAR_MILES);
+  return { type: 'Feature', properties: {}, geometry: { type: 'MultiPolygon', coordinates: keep.map((p) => p.coordinates) } };
+}

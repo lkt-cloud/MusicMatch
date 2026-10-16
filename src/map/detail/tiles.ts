@@ -19,7 +19,20 @@ export const MAX_TILE_Z = 12;
 export type RoadClass = 'motorway' | 'trunk' | 'primary' | 'secondary';
 export type PlaceClass = 'city' | 'town' | 'village' | 'suburb';
 
-export type Place = { name: string; coords: [number, number]; cls: PlaceClass; rank: number };
+export type Place = {
+  name: string;
+  /** The local Japanese name, for places in Japan (shown when the app is in Japanese). */
+  nameJa?: string;
+  coords: [number, number];
+  cls: PlaceClass;
+  rank: number;
+};
+
+// Places in Japan get their Japanese name. Japan's area also takes in a corner of Korea and
+// Russia, whose local names are in Hangul and Cyrillic, so a kana/kanji local name inside it
+// means Japan.
+const inJapanArea = ([lng, lat]: [number, number]) => lng > 122.9 && lng < 154 && lat > 20.3 && lat < 45.6;
+const JAPANESE = /[\u3040-\u30ff\u4e00-\u9fff]/;
 
 export type TileData = {
   key: string;
@@ -127,7 +140,10 @@ function decode(buf: ArrayBuffer, x: number, y: number, z: number, key: string):
     if (f.type !== 1 || !PLACE_CLASSES.has(cls) || !name) return;
     const g = f.toGeoJSON(x, y, z).geometry;
     if (g.type !== 'Point') return;
-    data.places.push({ name, coords: g.coordinates as [number, number], cls: cls as PlaceClass, rank: Number(f.properties.rank ?? 10) });
+    const coords = g.coordinates as [number, number];
+    const local = f.properties.name as string | undefined;
+    const nameJa = inJapanArea(coords) && local && JAPANESE.test(local) ? ((f.properties['name:ja'] as string | undefined) ?? local) : undefined;
+    data.places.push({ name, nameJa, coords, cls: cls as PlaceClass, rank: Number(f.properties.rank ?? 10) });
   });
   return data;
 }

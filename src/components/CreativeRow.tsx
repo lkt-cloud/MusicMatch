@@ -5,6 +5,7 @@ import { RoleLine } from './RoleBadge';
 import { Icon } from './Icon';
 import { usePromotionFlags } from '../backend/promotions';
 import { t } from '../i18n';
+import { cityName } from '../data/places';
 
 // Links to the profile, or runs onClick instead when given (e.g. focus on the map).
 export function CreativeRow({
@@ -37,7 +38,7 @@ export function CreativeRow({
           )}
         </strong>
         <span className="muted small">
-          <RoleLine person={person} compact /> · {person.city}
+          <RoleLine person={person} compact /> · {cityName(person.city, person.country)}
         </span>
       </span>
       <span className="creative-row-side small">

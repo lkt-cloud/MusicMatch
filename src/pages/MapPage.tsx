@@ -5,7 +5,8 @@ import { FlatEarth } from '../map/FlatEarth';
 import { Globe } from '../map/Globe';
 import { AREA_MILES, EARTH_RADIUS_MI, LOCAL_ZOOM, MAX_ZOOM, formatDistance, formatRadius, milesBetween, reaches, type EarthHandle, type View } from '../map/shared';
 import { ActiveFilters, FilterPanel, NO_FILTERS, countFilters, matches, type Filters } from '../components/MapFilters';
-import { CITY_NAMES, cityCoords } from '../data/creatives';
+import { CITY_NAMES, cityCoords, cityCountry } from '../data/creatives';
+import { cityName } from '../data/places';
 import { hasRole, roleInfo, rolesOf } from '../data/roles';
 import type { Creative } from '../data/types';
 import { useStore } from '../store';
@@ -114,7 +115,7 @@ export function MapPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, flags, me.city]);
 
-  const place = view.zoom < 5 ? t('Everywhere') : t('Around {city}', { city: nearestCity(view.center) });
+  const place = view.zoom < 5 ? t('Everywhere') : t('Around {city}', { city: ((c) => cityName(c, cityCountry(c)))(nearestCity(view.center)) });
 
   const q = query.trim().toLowerCase();
   // Search looks through everyone, not just who's loaded: matches are fetched and then listed below.
@@ -125,7 +126,7 @@ export function MapPage() {
   }, [q, searchPeople]);
   const results = q
     ? [
-        ...CITY_NAMES.filter((c) => c.toLowerCase().includes(q)).map((c) => ({ kind: 'city' as const, city: c })),
+        ...CITY_NAMES.filter((c) => c.toLowerCase().includes(q) || cityName(c, cityCountry(c)).includes(q)).map((c) => ({ kind: 'city' as const, city: c })),
         ...creatives
           .filter((c) => c.name.toLowerCase().includes(q) || c.genres.some((g) => g.toLowerCase().includes(q)))
           // Featured profiles from your city come first in search too.
@@ -199,7 +200,7 @@ export function MapPage() {
                         }}
                       >
                         <span className="search-icon"><Icon name="pin" size={16} /></span>
-                        <span>{r.city}</span>
+                        <span>{cityName(r.city, cityCountry(r.city))}</span>
                       </button>
                     </li>
                   ) : (
@@ -212,7 +213,7 @@ export function MapPage() {
                       >
                         <Avatar person={r.person} size={26} />
                         <span>{r.person.name}</span>
-                        <span className="muted small">{rolesOf(r.person).map((x) => roleInfo(x).label).join(' + ')} · {r.person.city}</span>
+                        <span className="muted small">{rolesOf(r.person).map((x) => roleInfo(x).label).join(' + ')} · {cityName(r.person.city, r.person.country)}</span>
                       </button>
                     </li>
                   ),
@@ -290,7 +291,7 @@ export function MapPage() {
                   </span>
                 )}
                 <div className="muted small">
-                  <RoleLine person={selected} /> · {selected.city}
+                  <RoleLine person={selected} /> · {cityName(selected.city, selected.country)}
                   {located && <> · {formatDistance(milesBetween(me.coords, selected.coords))}</>}
                 </div>
               </div>

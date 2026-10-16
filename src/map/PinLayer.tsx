@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState, type PointerEvent, type ReactNode } from 'react';
-import { CITY_NAMES, cityCoords } from '../data/creatives';
+import { CITY_NAMES, cityCoords, cityCountry } from '../data/creatives';
 import { roleInfo, rolesOf } from '../data/roles';
 import type { Creative } from '../data/types';
 import { Avatar } from '../components/Avatar';
@@ -9,6 +9,7 @@ import { isNight, type Sky } from './sky';
 import { CITY_AREA_MILES, formatRadius, isExact, radiusCircle } from './shared';
 import { DETAIL_ZOOM } from './detail/useMapDetail';
 import { t } from '../i18n';
+import { cityName } from '../data/places';
 
 type Props = {
   size: { w: number; h: number };
@@ -72,8 +73,8 @@ function fanLayout(n: number, x: number, y: number) {
 function hoverRadiusOf(c: Creative, skipTravel: boolean) {
   const area = !isExact(c);
   if (c.travelMiles && !skipTravel)
-    return { miles: c.travelMiles, kind: 'travel', text: area ? t('{city} · travels up to {radius}', { city: c.city, radius: formatRadius(c.travelMiles) }) : t('Travels up to {radius}', { radius: formatRadius(c.travelMiles) }) } as const;
-  if (area) return { miles: CITY_AREA_MILES, kind: 'area', text: t('Somewhere in {city}', { city: c.city }) } as const;
+    return { miles: c.travelMiles, kind: 'travel', text: area ? t('{city} · travels up to {radius}', { city: cityName(c.city, c.country), radius: formatRadius(c.travelMiles) }) : t('Travels up to {radius}', { radius: formatRadius(c.travelMiles) }) } as const;
+  if (area) return { miles: CITY_AREA_MILES, kind: 'area', text: t('Somewhere in {city}', { city: cityName(c.city, c.country) }) } as const;
   return null;
 }
 
@@ -240,7 +241,7 @@ export function PinLayer({ size, zoom, toScreen, creatives, me, selectedId, onSe
             className="crowd-more"
             style={{ transform: `translate(${seats[FAN_MAX][0]}px, ${seats[FAN_MAX][1]}px)` }}
             onClick={() => setExpanded(u.city!)}
-            aria-label={t('Show {n} more in {city}', { n: u.members.length - FAN_MAX, city: u.members[0].city })}
+            aria-label={t('Show {n} more in {city}', { n: u.members.length - FAN_MAX, city: cityName(u.members[0].city, u.members[0].country) })}
           >
             +{u.members.length - FAN_MAX}
           </button>
@@ -251,7 +252,7 @@ export function PinLayer({ size, zoom, toScreen, creatives, me, selectedId, onSe
           </button>
         )}
         <span className="map-label is-city crowd-city" style={{ transform: `translate(${u.x}px, ${u.y}px)` }}>
-          {u.members[0].city}
+          {cityName(u.members[0].city, u.members[0].country)}
         </span>
       </Fragment>
     );
@@ -284,7 +285,7 @@ export function PinLayer({ size, zoom, toScreen, creatives, me, selectedId, onSe
           if (!p || !inView(p[0], p[1], size, 80)) return null;
           return (
             <span key={name} className="city-label" style={{ transform: `translate(${p[0]}px, ${p[1] - 40}px)` }}>
-              {name}
+              {cityName(name, cityCountry(name))}
             </span>
           );
         })}

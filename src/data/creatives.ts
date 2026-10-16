@@ -36,6 +36,7 @@ const CITIES: Record<string, { coords: [number, number]; country: string }> = {
 
 export const CITY_NAMES = Object.keys(CITIES);
 export const cityCoords = (city: string) => CITIES[city].coords;
+export const cityCountry = (city: string) => CITIES[city]?.country ?? '';
 
 const RATES: Record<Role, string[]> = {
   artist: ['Open to collabs', 'Features from $300', 'Open to collabs'],

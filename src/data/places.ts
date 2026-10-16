@@ -1,6 +1,7 @@
 // Country → city lookup. The city list is ~120 KB gzipped, so it's loaded on demand.
 
-import { locale } from '../i18n';
+import { lang, locale } from '../i18n';
+import { JP_CITY_JA } from './jp-cities';
 export type Place = { name: string; coords: [number, number]; region?: string };
 type Raw = Record<string, [string, number, number, string?][]>;
 
@@ -19,6 +20,12 @@ export async function loadCities(country: string): Promise<Place[]> {
   const raw = await loadRaw();
   return (raw[country] ?? []).map(([name, lng, lat, region]) => ({ name, coords: [lng, lat], region }));
 }
+
+/**
+ * A city's name for showing: Japanese cities are written in Japanese when the app is in
+ * Japanese; everywhere else keeps its usual (English) name. What's stored is always the English.
+ */
+export const cityName = (city: string, country: string) => (country === 'JP' && lang() === 'ja' ? (JP_CITY_JA[city] ?? city) : city);
 
 /** A country's name in the app's language. */
 export const countryName = (code: string) => {

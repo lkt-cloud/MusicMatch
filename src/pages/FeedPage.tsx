@@ -19,6 +19,7 @@ import { startCheckout } from '../backend/api';
 import { LAUNCH_LABEL, usePricing } from '../data/pricing';
 import { SafetyMenu } from '../components/Safety';
 import { t } from '../i18n';
+import { cityName } from '../data/places';
 
 /** "Around you" covers people within this many miles. */
 const NEARBY_MILES = 60;
@@ -73,7 +74,7 @@ export function FeedPage() {
                 {t('All')}
               </button>
               <button role="tab" aria-selected={scope === 'near'} className={scope === 'near' ? 'is-on' : ''} onClick={() => setScope('near')}>
-                {me.city ? t('Near {city}', { city: me.city }) : t('Near you')} <span className="count">{nearCount}</span>
+                {me.city ? t('Near {city}', { city: cityName(me.city, me.country) }) : t('Near you')} <span className="count">{nearCount}</span>
               </button>
             </div>
           )}
@@ -327,7 +328,7 @@ function PostCard({ post, promoted = false }: { post: Post; promoted?: boolean }
             {author.name}
           </Link>
           <span className="muted small">
-            <RoleLine person={author} compact /> · {author.city}
+            <RoleLine person={author} compact /> · {cityName(author.city, author.country)}
             {!located || away > NEARBY_MILES ? '' : !mine && ` · ${t('nearby')}`} · {timeAgo(post.at)}
           </span>
         </div>

@@ -8,6 +8,7 @@ import { Icon, RoleIcon } from './Icon';
 import { CityPicker, CountrySelect } from './LocationFields';
 import { AvatarEditor } from './ProfileMedia';
 import { t } from '../i18n';
+import { cityName } from '../data/places';
 
 // First-time setup, straight after signing up: what you do, where you're based and a photo.
 // Without a city nobody shows up on the map, so this is shown until there is one. It can be
@@ -194,7 +195,7 @@ export function Onboarding() {
           </label>
           {me.city && (
             <p className="field-note is-good">
-              <Icon name="pin" size={14} /> {t('You’ll appear around {city}.', { city: me.city })}
+              <Icon name="pin" size={14} /> {t('You’ll appear around {city}.', { city: cityName(me.city, me.country) })}
             </p>
           )}
         </>

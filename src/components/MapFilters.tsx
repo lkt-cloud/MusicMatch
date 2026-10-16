@@ -5,6 +5,7 @@ import { formatRadius, milesBetween, reaches } from '../map/shared';
 import { useStore } from '../store';
 import { Icon, RoleIcon } from './Icon';
 import { plural, t } from '../i18n';
+import { cityName } from '../data/places';
 
 export type Filters = {
   /** Only people within this many miles of you; null = anywhere. */
@@ -99,7 +100,7 @@ export function FilterPanel({
         />
         <div className="range-scale small muted">
           <span>{formatRadius(1)}</span>
-          <span>{me.city ? t('from {city}', { city: me.city }) : t('from you')}</span>
+          <span>{me.city ? t('from {city}', { city: cityName(me.city, me.country) }) : t('from you')}</span>
           <span>{t('Anywhere')}</span>
         </div>
         <label className="check">

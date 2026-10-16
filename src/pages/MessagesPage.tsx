@@ -14,6 +14,7 @@ import { ReportModal, SafetyMenu } from '../components/Safety';
 import { BookingRequest, ShareSlotsModal, SlotsCard } from '../components/Booking';
 import type { SharedSlot } from '../data/types';
 import { t } from '../i18n';
+import { cityName } from '../data/places';
 
 const KIND_LABEL = { image: 'Photo', video: 'Video', audio: 'Audio', file: 'File' } as const; // shown through t()
 
@@ -156,7 +157,7 @@ function Thread({ withId }: { withId: string }) {
           <span className="thread-who-text">
             <strong>{who.name}</strong>
             <span className="muted small">
-              <span className={online ? 'status-online' : ''}>{online ? t('Online') : t('Offline')}</span> · <RoleLine person={who} /> · {who.city}
+              <span className={online ? 'status-online' : ''}>{online ? t('Online') : t('Offline')}</span> · <RoleLine person={who} /> · {cityName(who.city, who.country)}
             </span>
           </span>
         </Link>

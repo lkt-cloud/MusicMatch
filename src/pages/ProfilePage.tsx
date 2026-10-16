@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { ROLES, canPromote, hasRole, ratesOf, roleInfo, rolePatch, rolesOf, travels } from '../data/roles';
-import { countryName, flag, loadCities } from '../data/places';
+import { cityName, countryName, flag, loadCities } from '../data/places';
 import { PLATFORMS, normalizeSocialUrl, platformInfo } from '../data/socials';
 import type { Creative, Role, SocialPlatform } from '../data/types';
 import { useStore } from '../store';
@@ -98,7 +98,7 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
             <div className="muted">
               <RoleLine person={p} /> ·{' '}
               <span className="nowrap">
-                <Icon name="pin" size={14} /> {p.city && `${p.city}, `}
+                <Icon name="pin" size={14} /> {p.city && `${cityName(p.city, p.country)}, `}
                 {flag(p.country)} {countryName(p.country)}
               </span>
               {away != null && <> · {t('{distance} away', { distance: formatDistance(away) })}</>}
@@ -289,7 +289,7 @@ function LocationInfo({ person: p, me, mine, located }: { person: Creative; me: 
           <div>
             <span className="stat-label">{t('Travel radius')}</span>
             <strong>
-              {t('Up to {radius} from {city}', { radius: formatRadius(p.travelMiles), city: p.city })}
+              {t('Up to {radius} from {city}', { radius: formatRadius(p.travelMiles), city: cityName(p.city, p.country) })}
             </strong>
             {!mine && located && reaches(p, me.coords) && <span className="tag-good">{t('Can come to you')}</span>}
           </div>
@@ -490,7 +490,7 @@ export function MapSpot() {
         {(status === 'idle' || status === 'locating') &&
           (exact
             ? t('Your pin is where you were when you set it. Switch back to City only any time.')
-            : t('Your pin sits above {city} on the map, with everyone else there. Nobody sees where in the city you are.', { city: me.city || t('your city') }))}
+            : t('Your pin sits above {city} on the map, with everyone else there. Nobody sees where in the city you are.', { city: me.city ? cityName(me.city, me.country) : t('your city') }))}
       </p>
     </div>
   );

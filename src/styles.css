@@ -1504,7 +1504,8 @@ button, .nav-link, .chip { -webkit-user-select: none; user-select: none; touch-a
 /* ---------- Country map ---------- */
 
 .map-stage.is-country { background: var(--ocean-globe); }
-.country-map svg { background: linear-gradient(180deg, var(--ocean-center), var(--ocean-edge)); }
+.country-map svg { background: var(--ocean-center); }
+.country-cover { fill: var(--ocean-center); stroke: none; }
 .country-land { fill: url(#country-land); stroke: none; }
 .country-coast { fill: none; stroke: var(--coast); stroke-width: 0.8; vector-effect: non-scaling-stroke; }
 .country-detail-land { fill: url(#country-land); stroke: none; }

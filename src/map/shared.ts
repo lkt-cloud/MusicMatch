@@ -145,6 +145,20 @@ export const countryShape = (code: string): CountryShape | null => allCountries(
 const inBox = ([lng, lat]: [number, number], [[w, s], [e, n]]: [[number, number], [number, number]]) =>
   lat >= s && lat <= n && (w <= e ? lng >= w && lng <= e : lng >= w || lng <= e);
 
+/** The countries near a lng/lat box (bounding boxes overlapping it, `pad` degrees larger), except `except`. */
+export function countriesNear(box: [[number, number], [number, number]], except: string, pad = 4): CountryShape[] {
+  const [[w, s], [e, n]] = box;
+  const wrapped = w > e; // crosses the date line
+  return allCountries()
+    .filter((c) => c.code !== except)
+    .filter(({ box: [[cw, cs], [ce, cn]] }) => {
+      if (cn < s - pad || cs > n + pad) return false;
+      if (wrapped || cw > ce) return true; // keep it simple across the date line
+      return ce >= w - pad && cw <= e + pad;
+    })
+    .map((c) => c.shape);
+}
+
 /** Which country a point is in (ISO alpha-2), or null at sea. */
 export function countryAt(point: [number, number]): string | null {
   for (const c of allCountries()) if (inBox(point, c.box) && geoContains(c.shape, point)) return c.code;

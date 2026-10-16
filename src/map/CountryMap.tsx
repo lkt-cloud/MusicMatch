@@ -10,7 +10,7 @@ import { DETAIL_ZOOM, useMapDetail } from './detail/useMapDetail';
 import { DetailLabels } from './detail/DetailLabels';
 import { LINE_STYLE, ROAD_STYLE, roadsAt, tilePaths } from './detail/draw';
 import type { TileData } from './detail/tiles';
-import { MAX_ZOOM, STATE_LINES, countryAt, countryShape, mainland, radiusCircle, type EarthProps } from './shared';
+import { MAX_ZOOM, STATE_LINES, countriesNear, countryAt, countryShape, mainland, radiusCircle, type EarthProps } from './shared';
 import { t } from '../i18n';
 
 // One country on its own, the way people mostly use the map: their own country, not the
@@ -25,6 +25,8 @@ const SIZE = 1000; // the fixed world space the country is fitted into
 type Country = {
   projection: GeoProjection;
   land: string;
+  /** Neighbouring countries, painted in the sea colour over the street detail so only this country shows. */
+  neighbours: string;
   states: string;
   detailPath: ReturnType<typeof geoPath>;
   /** World-space boxes: the mainland (the opening view) and everything (how far you can pan). */
@@ -54,6 +56,7 @@ function buildCountry(code: string): Country | null {
   const country: Country = {
     projection,
     land: path(shape) ?? '',
+    neighbours: path({ type: 'FeatureCollection', features: countriesNear(geoBounds(shape) as Country['geoBox'], code) }) ?? '',
     states: path(STATE_LINES) ?? '',
     detailPath: geoPath(projection).digits(5),
     main: path.bounds(main) as Country['main'],
@@ -299,9 +302,6 @@ export function CountryMap({ country: code, creatives, me, selectedId, onSelect,
   const detailAlpha = Math.max(0, Math.min(1, (rel - DETAIL_ZOOM) / 15));
   const tiles = useMemo(() => detail.tiles.map((tile) => ownPlaces(tile, code, country.geoBox)), [detail.tiles, code, country.geoBox]);
   const tilePathList = tiles.map((tile) => ({ key: tile.key, d: tilePaths(tile, country.detailPath) }));
-  // The coastline at this scale is approximate, so the street detail is masked to the country
-  // with a little margin around it rather than cut exactly at the line.
-  const margin = 18 / view.k;
 
   return (
     <div className="earth country-map" ref={wrapRef}>
@@ -311,14 +311,11 @@ export function CountryMap({ country: code, creatives, me, selectedId, onSelect,
             <stop offset="0%" stopColor="#a9a77c" />
             <stop offset="100%" stopColor="#93a072" />
           </linearGradient>
-          <mask id="country-mask" maskUnits="userSpaceOnUse" x={-SIZE * 4} y={-SIZE * 4} width={SIZE * 9} height={SIZE * 9}>
-            <path d={country.land} fill="white" stroke="white" strokeWidth={margin} strokeLinejoin="round" />
-          </mask>
         </defs>
         <g transform={svgTransform(view)}>
           <path d={country.land} className="country-land" />
           {tilePathList.length > 0 && (
-            <g className="detail" style={{ opacity: detailAlpha }} mask="url(#country-mask)">
+            <g className="detail" style={{ opacity: detailAlpha }}>
               {tilePathList.map(({ key, d }) => (
                 <g key={key}>
                   <path d={d.land} className="country-detail-land" />
@@ -327,9 +324,9 @@ export function CountryMap({ country: code, creatives, me, selectedId, onSelect,
               ))}
             </g>
           )}
-          {!moving && <path d={country.states} className="earth-states" mask="url(#country-mask)" style={{ opacity: Math.min(1, rel / 4) }} />}
+          {!moving && <path d={country.states} className="earth-states" style={{ opacity: Math.min(1, rel / 4) }} />}
           {tilePathList.length > 0 && (
-            <g className="detail" style={{ opacity: detailAlpha }} mask="url(#country-mask)">
+            <g className="detail" style={{ opacity: detailAlpha }}>
               {(moving ? [] : (['county', 'city', 'state'] as const)).map((level) =>
                 tilePathList.map(({ key, d }) => <path key={`${level}-${key}`} d={d.lines[level]} className="detail-line" style={lineStyle(level)} />),
               )}
@@ -347,6 +344,9 @@ export function CountryMap({ country: code, creatives, me, selectedId, onSelect,
                 )}
             </g>
           )}
+          {/* Only this country shows: neighbours' streets and lines are covered in sea colour.
+              (No SVG mask: phones redraw masks on every frame, which made dragging stall.) */}
+          {tilePathList.length > 0 && <path d={country.neighbours} className="country-cover" />}
           <path d={country.land} className="country-coast" />
           {rangePath && <path d={rangePath} className="earth-range" />}
           {radiusPath && selected && <path d={radiusPath} className="earth-radius" />}

@@ -107,13 +107,33 @@ export type Booking = {
 /** Something we told you about: booking news and reminders (shown in the Bookings tab). */
 export type Notice = {
   id: string;
-  kind: 'booking_request' | 'booking_confirmed' | 'booking_declined' | 'booking_cancelled' | 'reminder' | 'message';
+  kind:
+    | 'booking_request'
+    | 'booking_confirmed'
+    | 'booking_declined'
+    | 'booking_cancelled'
+    | 'reminder'
+    | 'message'
+    | 'review_request'
+    | 'review';
   title: string;
   body: string;
   url: string;
   actorId: string | null;
   bookingId: string | null;
   read: boolean;
+  at: number;
+};
+
+/** A client's rating of a session with a provider. */
+export type Review = {
+  id: string;
+  bookingId: string;
+  reviewerId: string;
+  revieweeId: string;
+  service: ServiceType;
+  rating: number;
+  comment: string;
   at: number;
 };
 

@@ -16,7 +16,7 @@ const REASONS: { id: ReportReason; label: string; hint: string }[] = [
   { id: 'other', label: 'Something else', hint: '' },
 ];
 
-const NOUN: Record<ReportTarget, string> = { post: 'post', comment: 'comment', profile: 'profile', message: 'message' };
+const NOUN: Record<ReportTarget, string> = { post: 'post', comment: 'comment', profile: 'profile', message: 'message', review: 'review' };
 
 export type SafetyTarget = {
   /** Who it's about. */

@@ -101,7 +101,7 @@ export function PrivacyPage() {
       <Section n={3} id="visible" title="Who can see what">
         <ul>
           <li>
-            <b>Public:</b> your profile, booking times, posts, comments and likes can be seen by anyone, including people who aren’t signed
+            <b>Public:</b> your profile, booking times, posts, comments, likes and the reviews you write or receive can be seen by anyone, including people who aren’t signed
             in. Don’t put anything there you want to keep private.
           </li>
           <li>

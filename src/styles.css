@@ -1433,3 +1433,27 @@ button, .nav-link, .chip { -webkit-user-select: none; user-select: none; touch-a
 .setup-photo { display: flex; justify-content: center; padding: 12px 0; }
 .setup-card { margin-bottom: 16px; }
 .field-note svg { vertical-align: -2px; }
+
+/* ---------- Reviews ---------- */
+
+.stars { display: inline-flex; gap: 1px; color: var(--accent); vertical-align: -2px; }
+.review-title { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.review-summary { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 700; }
+.review-empty { padding: 4px 0 8px; }
+.review-head .review-who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.review-head .safety { margin: -6px -8px -6px 0; }
+.review-head .safety .icon-btn { width: 32px; height: 32px; }
+
+.review-modal { width: min(460px, 100%); }
+.review-about { display: flex; align-items: center; gap: 12px; }
+.review-about > span { display: flex; flex-direction: column; }
+.star-picker { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 4px 0; }
+.star-picker [role='radiogroup'] { display: flex; gap: 4px; }
+.star-picker button { color: var(--surface-3); padding: 2px; transition: color 0.1s, scale 0.1s; }
+.star-picker button.is-on { color: var(--accent); }
+.star-picker button:active { scale: 0.9; }
+.star-word { font-size: 14px; font-weight: 700; color: var(--text-2); min-height: 20px; }
+
+.past-review { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.notice { color: inherit; }
+@media (hover: hover) { a.notice:hover { background: var(--surface); } }

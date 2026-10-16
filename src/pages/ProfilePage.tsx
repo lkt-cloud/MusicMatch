@@ -23,12 +23,7 @@ import { AttachmentView } from '../components/AttachmentView';
 import { SafetyMenu } from '../components/Safety';
 import { BookingEditor, BookingTimes } from '../components/Booking';
 import { FinishSetupCard } from '../components/Onboarding';
-
-const REVIEWS = [
-  { by: 'lilmerit', text: 'Easy to work with and fast. The final product was better than I pictured.', days: 12 },
-  { by: 'dresolace', text: 'Professional from start to finish. Already booked again.', days: 34 },
-  { by: 'kayawells', text: 'Great energy in the room, knows exactly what they want.', days: 61 },
-];
+import { ReviewList } from '../components/Reviews';
 
 const directionsUrl = ([lng, lat]: [number, number]) =>
   `https://www.google.com/maps/dir/?api=1&destination=${lat.toFixed(6)},${lng.toFixed(6)}`;
@@ -265,27 +260,7 @@ export function ProfilePage({ mine = false }: { mine?: boolean }) {
         </section>
       )}
 
-      {!mine && (
-        <section>
-          <h2 className="section-title">Reviews</h2>
-          <div className="reviews">
-            {REVIEWS.filter((r) => r.by !== p.id).slice(0, 2).map((r) => {
-              const who = person(r.by);
-              return (
-                <div key={r.by} className="card review">
-                  <div className="review-head">
-                    <Avatar person={who} size={32} />
-                    <strong className="small">{who.name}</strong>
-                    <span className="rating small">★★★★★</span>
-                    <span className="muted small push">{r.days}d ago</span>
-                  </div>
-                  <p>{r.text}</p>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
+      <ReviewList person={p} mine={mine} />
     </div>
   );
 }

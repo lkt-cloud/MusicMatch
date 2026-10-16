@@ -13,6 +13,7 @@ import type {
   NotificationPrefs,
   Post,
   PostKind,
+  Review,
   Role,
   ServiceType,
   SharedSlot,
@@ -49,6 +50,8 @@ type ProfileRow = {
   avatar_path: string | null;
   banner_path: string | null;
   featured_post_id: string | null;
+  rating?: number | string;
+  review_count?: number;
 };
 
 const toCreative = (r: ProfileRow): Creative => ({
@@ -66,8 +69,8 @@ const toCreative = (r: ProfileRow): Creative => ({
   bio: r.bio,
   rate: r.rate,
   roleRates: r.role_rates ?? {},
-  rating: 0,
-  reviews: 0,
+  rating: Number(r.rating ?? 0),
+  reviews: r.review_count ?? 0,
   genres: toGenreIds(r.genres ?? []),
   available: r.available,
   work: [],
@@ -412,6 +415,56 @@ export async function cancelBooking(id: string) {
   if (error) throw error;
 }
 
+// ------------------------------------------------------------------ reviews
+
+type ReviewRow = {
+  id: string;
+  booking_id: string;
+  reviewer_id: string;
+  reviewee_id: string;
+  service: ServiceType;
+  rating: number;
+  comment: string;
+  updated_at: string;
+};
+
+const toReview = (r: ReviewRow): Review => ({
+  id: r.id,
+  bookingId: r.booking_id,
+  reviewerId: r.reviewer_id,
+  revieweeId: r.reviewee_id,
+  service: r.service,
+  rating: r.rating,
+  comment: r.comment,
+  at: Date.parse(r.updated_at),
+});
+
+const REVIEW_COLUMNS = 'id, booking_id, reviewer_id, reviewee_id, service, rating, comment, updated_at';
+
+/** Reviews someone has received, newest first. */
+export async function fetchReviewsFor(userId: string): Promise<Review[]> {
+  const { data, error } = await db()
+    .from('reviews')
+    .select(REVIEW_COLUMNS)
+    .eq('reviewee_id', userId)
+    .order('updated_at', { ascending: false })
+    .limit(50);
+  if (error) throw error;
+  return (data as ReviewRow[]).map(toReview);
+}
+
+/** Reviews you've written (to show which sessions you've already rated). */
+export async function fetchReviewsBy(userId: string): Promise<Review[]> {
+  const { data, error } = await db().from('reviews').select(REVIEW_COLUMNS).eq('reviewer_id', userId).limit(300);
+  if (error) throw error;
+  return (data as ReviewRow[]).map(toReview);
+}
+
+export async function submitReview(bookingId: string, rating: number, comment: string) {
+  const { error } = await db().rpc('submit_review', { p_booking: bookingId, p_rating: rating, p_comment: comment });
+  if (error) throw error;
+}
+
 // ------------------------------------------------------------------ notifications
 
 type NoticeRow = {
@@ -481,7 +534,7 @@ export async function removePushSubscription(endpoint: string) {
 
 // ------------------------------------------------------------------ report & block
 
-export type ReportTarget = 'post' | 'comment' | 'profile' | 'message';
+export type ReportTarget = 'post' | 'comment' | 'profile' | 'message' | 'review';
 export type ReportReason = 'spam' | 'harassment' | 'sexual' | 'violence' | 'impersonation' | 'copyright' | 'other';
 
 export async function fetchBlocks(): Promise<string[]> {

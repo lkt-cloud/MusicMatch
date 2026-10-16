@@ -11,6 +11,7 @@ import type {
   NotificationPrefs,
   Post,
   PostKind,
+  Review,
   ServiceType,
   SharedSlot,
   Slot,
@@ -82,6 +83,12 @@ export type Store = {
   /** The provider accepts or declines a request. */
   respondBooking: (id: string, accept: boolean) => Promise<void>;
   cancelBooking: (id: string) => Promise<void>;
+  /** Reviews someone has received, newest first. Undefined while they load. */
+  reviewsOf: (userId: string) => Review[] | undefined;
+  /** The review you left for a booking, if any. */
+  myReviewFor: (bookingId: string) => Review | undefined;
+  /** Rates a finished session (or changes your rating). */
+  submitReview: (booking: Booking, rating: number, comment: string) => Promise<void>;
   /** Booking news and reminders (the Bookings tab), newest first. */
   notices: Notice[];
   unreadNotices: number;
@@ -204,6 +211,7 @@ type DemoState = {
   bookings: Booking[];
   notices: Notice[];
   prefs: NotificationPrefs;
+  reviews: Review[];
   seedVersion?: number;
 };
 
@@ -233,6 +241,51 @@ function seedSlots(): Slot[] {
     );
 }
 
+/** A session you had yesterday, waiting for your review. */
+function pastSession(): Booking {
+  const studio = CREATIVES.find((c) => c.role === 'studio') ?? CREATIVES[0];
+  const start = Date.now() - 26 * 3_600_000;
+  return {
+    id: uid(),
+    providerId: studio.id,
+    clientId: ME_ID,
+    slotId: null,
+    service: 'studio_session',
+    start,
+    end: start + 4 * 3_600_000,
+    note: '',
+    status: 'confirmed',
+    cancelledBy: null,
+    createdAt: start - 5 * 86_400_000,
+  };
+}
+
+const SAMPLE_REVIEWS = [
+  'Easy to work with and fast. The final product was better than I pictured.',
+  'Professional from start to finish. Already booked again.',
+  'Great energy in the room, knows exactly what they want.',
+  'Showed up on time, had everything ready. Would recommend.',
+];
+
+/** A few sample reviews for each sample person, written by other sample people. */
+function seedReviews(): Review[] {
+  return CREATIVES.flatMap((c, i) =>
+    [0, 1].map((k) => {
+      const by = CREATIVES[(i + k + 1) % CREATIVES.length];
+      return {
+        id: `${c.id}-r${k}`,
+        bookingId: `${c.id}-b${k}`,
+        reviewerId: by.id,
+        revieweeId: c.id,
+        service: 'session' as const,
+        rating: k === 1 && i % 3 === 0 ? 4 : 5,
+        comment: SAMPLE_REVIEWS[(i + k) % SAMPLE_REVIEWS.length],
+        at: Date.now() - (12 + 22 * k + i) * 86_400_000,
+      };
+    }),
+  );
+}
+
 /** A sample request someone sent you, so the Bookings tab has something to answer. */
 function seedBookings(): Booking[] {
   const studio = CREATIVES.find((c) => c.role === 'producer') ?? CREATIVES[0];
@@ -253,6 +306,7 @@ function seedBookings(): Booking[] {
       cancelledBy: null,
       createdAt: Date.now(),
     },
+    pastSession(),
   ];
 }
 
@@ -276,7 +330,9 @@ function loadDemo(): DemoState {
         mapMode: readMapMode(),
         blocked: saved.blocked ?? [],
         slots: saved.slots ?? seedSlots(),
-        bookings: saved.bookings ?? seedBookings(),
+        // Older saved demos get the sample past session too, so there's something to review.
+        bookings: saved.bookings ? (saved.reviews ? saved.bookings : [...saved.bookings, pastSession()]) : seedBookings(),
+        reviews: saved.reviews ?? seedReviews(),
         notices: saved.notices ?? [],
         prefs: saved.prefs ?? DEFAULT_PREFS,
       };
@@ -284,7 +340,7 @@ function loadDemo(): DemoState {
   } catch {
     // storage unavailable or corrupt — fall back to seed data
   }
-  return { me: ME, posts: SEED_POSTS, conversations: SEED_CONVERSATIONS, mapMode: readMapMode(), blocked: [], slots: seedSlots(), bookings: seedBookings(), notices: [], prefs: DEFAULT_PREFS, seedVersion: SEED_VERSION };
+  return { me: ME, posts: SEED_POSTS, conversations: SEED_CONVERSATIONS, mapMode: readMapMode(), blocked: [], slots: seedSlots(), bookings: seedBookings(), notices: [], prefs: DEFAULT_PREFS, reviews: seedReviews(), seedVersion: SEED_VERSION };
 }
 
 const FILE_REPLIES = ['Just listened — this is hard 🔥', 'Got it, going through it now.', 'Ooh. Let’s build on this one.'];
@@ -481,6 +537,24 @@ function DemoProvider({ children }: { children: ReactNode }) {
         slots: s.slots.map((x) => (s.bookings.some((b) => b.id === id && b.slotId === x.id) ? { ...x, booked: false } : x)),
       }));
     },
+    reviewsOf: (id) => state.reviews.filter((r) => r.revieweeId === id).sort((a, b) => b.at - a.at),
+    myReviewFor: (bookingId) => state.reviews.find((r) => r.bookingId === bookingId && r.reviewerId === ME_ID),
+    async submitReview(booking, rating, comment) {
+      setState((s) => {
+        const mine = s.reviews.find((r) => r.bookingId === booking.id && r.reviewerId === ME_ID);
+        const review: Review = {
+          id: mine?.id ?? uid(),
+          bookingId: booking.id,
+          reviewerId: ME_ID,
+          revieweeId: booking.providerId,
+          service: booking.service,
+          rating,
+          comment,
+          at: Date.now(),
+        };
+        return { ...s, reviews: [review, ...s.reviews.filter((r) => r.id !== review.id)] };
+      });
+    },
     notices: state.notices,
     unreadNotices: state.notices.filter((n) => !n.read).length,
     markNoticesRead: () =>
@@ -542,6 +616,9 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_PREFS);
+  const [reviewsBy, setReviewsBy] = useState<Map<string, Review[]>>(new Map());
+  const reviewsRequested = useRef(new Set<string>());
+  const [myReviews, setMyReviews] = useState<Review[]>([]);
   const [banner, showBanner, dismissBanner] = useBanner();
   const { showOnline } = useSettings();
   const [posts, setPosts] = useState<Post[]>([]);
@@ -712,6 +789,7 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
     }
     refreshBookings();
     api.fetchNotices().then(setNotices, (e) => console.error(e));
+    api.fetchReviewsBy(userId).then(setMyReviews, (e) => console.error(e));
     api
       .fetchNotificationPrefs(userId)
       .then((saved) => {
@@ -1042,6 +1120,35 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
           return next;
         });
       }
+    },
+    reviewsOf(id) {
+      const list = reviewsBy.get(id);
+      if (list) return list;
+      if (!reviewsRequested.current.has(id) && api.isProfileId(id)) {
+        reviewsRequested.current.add(id);
+        api.fetchReviewsFor(id).then(
+          (found) => setReviewsBy((m) => new Map(m).set(id, found)),
+          (e) => {
+            console.error(e);
+            setReviewsBy((m) => new Map(m).set(id, []));
+          },
+        );
+      }
+      return undefined;
+    },
+    myReviewFor: (bookingId) => myReviews.find((r) => r.bookingId === bookingId),
+    async submitReview(booking, rating, comment) {
+      if (!userId) return;
+      await api.submitReview(booking.id, rating, comment);
+      // Fresh copies: your review, their list of reviews and their new average.
+      const [mine, theirs, profile] = await Promise.all([
+        api.fetchReviewsBy(userId),
+        api.fetchReviewsFor(booking.providerId),
+        api.fetchProfilesByIds([booking.providerId]),
+      ]);
+      setMyReviews(mine);
+      setReviewsBy((m) => new Map(m).set(booking.providerId, theirs));
+      mergeProfiles(profile);
     },
     notices,
     unreadNotices,

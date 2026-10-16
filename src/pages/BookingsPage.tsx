@@ -8,6 +8,7 @@ import { SignInPrompt } from '../components/SignInPrompt';
 import { NotifyCard } from '../components/Notify';
 import { BookingEditor, SERVICE_LABEL, formatDay, formatTimes } from '../components/Booking';
 import { timeAgo } from '../components/time';
+import { ReviewModal, Stars } from '../components/Reviews';
 
 /** Booking requests to answer, what's coming up, and the notifications about them. */
 export function BookingsPage() {
@@ -32,7 +33,11 @@ function BookingsContent() {
   const requests = bookings.filter((b) => b.status === 'pending' && b.providerId === meId && b.start > now);
   const upcoming = bookings.filter((b) => b.status === 'confirmed' && b.end > now);
   const waiting = bookings.filter((b) => b.status === 'pending' && b.clientId === meId && b.start > now);
-  const nothing = !requests.length && !upcoming.length && !waiting.length;
+  // Sessions that happened in the last 60 days (the window for reviewing them), newest first.
+  const past = bookings
+    .filter((b) => b.status === 'confirmed' && b.end <= now && b.end > now - 60 * 86_400_000)
+    .sort((a, b) => b.start - a.start);
+  const nothing = !requests.length && !upcoming.length && !waiting.length && !past.length;
 
   return (
     <div className="page bookings">
@@ -65,6 +70,14 @@ function BookingsContent() {
         <Section title="Waiting for an answer">
           {waiting.map((b) => (
             <BookingCard key={b.id} booking={b} />
+          ))}
+        </Section>
+      )}
+
+      {past.length > 0 && (
+        <Section title="Past sessions">
+          {past.map((b) => (
+            <PastCard key={b.id} booking={b} />
           ))}
         </Section>
       )}
@@ -203,7 +216,46 @@ function BookingCard({ booking: b }: { booking: Booking }) {
   );
 }
 
+/** A session that's over: the client can rate it. */
+function PastCard({ booking: b }: { booking: Booking }) {
+  const { meId, person, myReviewFor } = useStore();
+  const [reviewing, setReviewing] = useState(false);
+  const client = b.clientId === meId;
+  const other = person(client ? b.providerId : b.clientId);
+  const review = client ? myReviewFor(b.id) : undefined;
+
+  return (
+    <article className="card booking-card is-past">
+      <div className="booking-card-top">
+        <Link to={`/u/${other.id}`}>
+          <Avatar person={other} size={40} />
+        </Link>
+        <div className="booking-card-who">
+          <strong>{SERVICE_LABEL[b.service]}</strong>
+          <span className="muted small">
+            {client ? 'With' : 'Booked by'} {other.name} · {formatDay(b.start)}
+          </span>
+        </div>
+        {client &&
+          (review ? (
+            <button className="past-review" onClick={() => setReviewing(true)} aria-label="Edit your review">
+              <Stars value={review.rating} size={13} />
+              <span className="muted small">Edit</span>
+            </button>
+          ) : (
+            <button className="btn primary" onClick={() => setReviewing(true)}>
+              <Icon name="star" size={15} /> Leave a review
+            </button>
+          ))}
+      </div>
+      {reviewing && <ReviewModal booking={b} provider={other} onClose={() => setReviewing(false)} />}
+    </article>
+  );
+}
+
 const NOTICE_ICON: Record<Notice['kind'], IconName> = {
+  review_request: 'star',
+  review: 'star',
   booking_request: 'calendar',
   booking_confirmed: 'calendar',
   booking_declined: 'close',
@@ -216,16 +268,18 @@ function NoticeRow({ notice: n, fresh }: { notice: Notice; fresh: boolean }) {
   const { person } = useStore();
   const who = n.actorId ? person(n.actorId) : null;
   return (
-    <li className={`notice${fresh ? ' is-fresh' : ''}`}>
-      {who ? <Avatar person={who} size={38} /> : <span className="notice-icon"><Icon name={NOTICE_ICON[n.kind]} size={18} /></span>}
-      <div className="notice-text">
-        <strong>{n.title}</strong>
-        <span>{n.body}</span>
-        <span className="muted small">{timeAgo(n.at)}</span>
-      </div>
-      <span className={`notice-kind kind-${n.kind}`} aria-hidden>
-        <Icon name={NOTICE_ICON[n.kind]} size={14} />
-      </span>
+    <li>
+      <Link to={n.url} className={`notice${fresh ? ' is-fresh' : ''}`}>
+        {who ? <Avatar person={who} size={38} /> : <span className="notice-icon"><Icon name={NOTICE_ICON[n.kind]} size={18} /></span>}
+        <div className="notice-text">
+          <strong>{n.title}</strong>
+          <span>{n.body}</span>
+          <span className="muted small">{timeAgo(n.at)}</span>
+        </div>
+        <span className={`notice-kind kind-${n.kind}`} aria-hidden>
+          <Icon name={NOTICE_ICON[n.kind]} size={14} />
+        </span>
+      </Link>
     </li>
   );
 }

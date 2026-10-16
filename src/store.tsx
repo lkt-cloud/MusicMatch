@@ -95,6 +95,10 @@ export type Store = {
   markNoticesRead: () => void;
   notificationPrefs: NotificationPrefs;
   setNotificationPrefs: (patch: Partial<NotificationPrefs>) => void;
+  /** You can moderate: see reports, remove content, suspend accounts (the /admin page). */
+  isAdmin: boolean;
+  /** Set when your account is suspended; `until` null means for good. */
+  suspension: { until: number | null; reason: string } | null;
   /** A short in-app banner for something that just happened (a message, a booking update). */
   banner: Banner | null;
   dismissBanner: () => void;
@@ -563,6 +567,8 @@ function DemoProvider({ children }: { children: ReactNode }) {
     setNotificationPrefs: (patch) => setState((s) => ({ ...s, prefs: { ...s.prefs, ...patch } })),
     banner,
     dismissBanner,
+    isAdmin: false,
+    suspension: null,
   };
 
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
@@ -619,6 +625,8 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
   const [reviewsBy, setReviewsBy] = useState<Map<string, Review[]>>(new Map());
   const reviewsRequested = useRef(new Set<string>());
   const [myReviews, setMyReviews] = useState<Review[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [suspension, setSuspension] = useState<Store['suspension']>(null);
   const [banner, showBanner, dismissBanner] = useBanner();
   const { showOnline } = useSettings();
   const [posts, setPosts] = useState<Post[]>([]);
@@ -785,8 +793,12 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
     if (!userId) {
       setBookings([]);
       setNotices([]);
+      setIsAdmin(false);
+      setSuspension(null);
       return;
     }
+    api.isAdmin().then(setIsAdmin, () => setIsAdmin(false));
+    api.mySuspension().then(setSuspension, () => setSuspension(null));
     refreshBookings();
     api.fetchNotices().then(setNotices, (e) => console.error(e));
     api.fetchReviewsBy(userId).then(setMyReviews, (e) => console.error(e));
@@ -1169,6 +1181,8 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
     },
     banner,
     dismissBanner,
+    isAdmin,
+    suspension,
     signOut: userId
       ? async () => {
           await forgetDevice();

@@ -115,7 +115,9 @@ export type Notice = {
     | 'reminder'
     | 'message'
     | 'review_request'
-    | 'review';
+    | 'review'
+    | 'report'
+    | 'report_update';
   title: string;
   body: string;
   url: string;

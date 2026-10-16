@@ -16,6 +16,8 @@ const REASONS: { id: ReportReason; label: string; hint: string }[] = [
   { id: 'other', label: 'Something else', hint: '' },
 ];
 
+export const REASON_LABEL = Object.fromEntries(REASONS.map((r) => [r.id, r.label])) as Record<ReportReason, string>;
+
 const NOUN: Record<ReportTarget, string> = { post: 'post', comment: 'comment', profile: 'profile', message: 'message', review: 'review' };
 
 export type SafetyTarget = {

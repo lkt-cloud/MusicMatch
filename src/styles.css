@@ -1457,3 +1457,33 @@ button, .nav-link, .chip { -webkit-user-select: none; user-select: none; touch-a
 .past-review { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .notice { color: inherit; }
 @media (hover: hover) { a.notice:hover { background: var(--surface); } }
+
+/* ---------- Moderation ---------- */
+
+.admin { max-width: 760px; }
+.admin-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.admin-lead { font-size: 14px; margin-bottom: 14px; }
+.admin-late { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; color: var(--danger); font-weight: 700; font-size: 14px; }
+.admin-tabs { margin-bottom: 18px; }
+.admin-list { display: flex; flex-direction: column; gap: 12px; }
+.admin-report { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.admin-report.is-late { border-color: rgba(229, 96, 79, 0.5); }
+.admin-report-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.admin-reason { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: rgba(229, 96, 79, 0.12); color: var(--danger); font-size: 13px; font-weight: 700; }
+.admin-times { color: var(--danger); }
+.admin-who { display: flex; align-items: center; gap: 10px; color: inherit; }
+.admin-who > span { display: flex; flex-direction: column; }
+.admin-content { margin: 0; padding: 12px 14px; border-radius: var(--r-sm); background: var(--bg); border-left: 3px solid var(--line-strong); font-size: 15px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.admin-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.admin-suspend { display: flex; flex-direction: column; gap: 10px; }
+.admin-suspend input { height: 40px; padding: 0 12px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; }
+.admin-done { display: flex; align-items: center; gap: 6px; color: var(--text-2); }
+.admin-suspended { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+.admin-suspended-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+.suspended-notice {
+  display: flex; align-items: flex-start; gap: 10px; margin: 12px 16px 0; padding: 12px 14px; border-radius: var(--r-md);
+  background: rgba(229, 96, 79, 0.12); border: 1px solid rgba(229, 96, 79, 0.35); color: var(--text); font-size: 14px;
+}
+.suspended-notice > svg { flex: none; color: var(--danger); margin-top: 1px; }
+.suspended-notice a { color: var(--accent); }

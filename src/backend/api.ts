@@ -465,6 +465,83 @@ export async function submitReview(bookingId: string, rating: number, comment: s
   if (error) throw error;
 }
 
+// ------------------------------------------------------------------ moderation
+
+export async function isAdmin(): Promise<boolean> {
+  const { data, error } = await db().rpc('is_admin');
+  if (error) throw error;
+  return !!data;
+}
+
+/** Your own suspension, if your account is suspended right now. */
+export async function mySuspension(): Promise<{ until: number | null; reason: string } | null> {
+  const { data, error } = await db().rpc('my_suspension');
+  if (error) throw error;
+  if (!data) return null;
+  const s = data as { until: string | null; reason: string };
+  return { until: s.until ? Date.parse(s.until) : null, reason: s.reason };
+}
+
+export type AdminReport = {
+  id: string;
+  reporterId: string;
+  reportedUserId: string | null;
+  targetType: ReportTarget;
+  targetId: string;
+  reason: ReportReason;
+  details: string;
+  status: 'open' | 'resolved' | 'dismissed';
+  action: string | null;
+  at: number;
+  resolvedAt: number | null;
+  timesReported: number;
+  suspended: boolean;
+  /** What was reported; null if it's already gone. */
+  content: { text: string; files?: number; rating?: number } | null;
+};
+
+export async function adminReports(open: boolean): Promise<AdminReport[]> {
+  const { data, error } = await db().rpc('admin_reports', { p_open: open });
+  if (error) throw error;
+  return (data as Record<string, never>[]).map((r) => ({
+    id: r.id,
+    reporterId: r.reporter_id,
+    reportedUserId: r.reported_user_id,
+    targetType: r.target_type,
+    targetId: r.target_id,
+    reason: r.reason,
+    details: r.details,
+    status: r.status,
+    action: r.action,
+    at: Date.parse(r.created_at),
+    resolvedAt: r.resolved_at ? Date.parse(r.resolved_at) : null,
+    timesReported: r.times_reported,
+    suspended: r.suspended,
+    content: r.content,
+  }));
+}
+
+export async function adminSuspensions(): Promise<{ userId: string; until: number | null; reason: string }[]> {
+  const { data, error } = await db().rpc('admin_suspensions');
+  if (error) throw error;
+  return (data as { user_id: string; until: string | null; reason: string }[]).map((s) => ({
+    userId: s.user_id,
+    until: s.until ? Date.parse(s.until) : null,
+    reason: s.reason,
+  }));
+}
+
+const call = async (fn: string, args: Record<string, unknown>) => {
+  const { error } = await db().rpc(fn, args);
+  if (error) throw error;
+};
+export const adminRemove = (reportId: string) => call('admin_remove', { p_report: reportId });
+export const adminDismiss = (reportId: string) => call('admin_dismiss', { p_report: reportId });
+/** `days` null suspends for good. */
+export const adminSuspend = (userId: string, days: number | null, reason: string) =>
+  call('admin_suspend', { p_user: userId, p_days: days, p_reason: reason });
+export const adminUnsuspend = (userId: string) => call('admin_unsuspend', { p_user: userId });
+
 // ------------------------------------------------------------------ notifications
 
 type NoticeRow = {

@@ -13,6 +13,7 @@ import { TermsPage } from './pages/TermsPage';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { LegalNoticePage } from './pages/LegalNoticePage';
 import { BookingsPage } from './pages/BookingsPage';
+import { AdminPage } from './pages/AdminPage';
 import { registerServiceWorker } from './push';
 import { LIVE } from './backend/client';
 import { applyAppearance } from './settings';
@@ -33,6 +34,7 @@ createRoot(document.getElementById('root')!).render(
             <Route path="messages" element={<MessagesPage />} />
             <Route path="messages/:id" element={<MessagesPage />} />
             <Route path="bookings" element={<BookingsPage />} />
+            <Route path="admin" element={<AdminPage />} />
             <Route path="u/:id" element={<ProfilePage />} />
             <Route path="me" element={<ProfilePage mine />} />
             <Route path="promotions" element={<PromotionsPage />} />

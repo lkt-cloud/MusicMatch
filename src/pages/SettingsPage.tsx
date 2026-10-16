@@ -13,8 +13,21 @@ import { MapSpot } from './ProfilePage';
 const VERSION = '1.0';
 
 export function SettingsPage() {
-  const { live, signedIn, requireSignIn, me, mapMode, setMapMode, signOut, blocked, unblockUser, person, notificationPrefs, setNotificationPrefs } =
-    useStore();
+  const {
+    live,
+    signedIn,
+    requireSignIn,
+    me,
+    mapMode,
+    setMapMode,
+    signOut,
+    blocked,
+    unblockUser,
+    person,
+    notificationPrefs,
+    setNotificationPrefs,
+    isAdmin,
+  } = useStore();
   const settings = useSettings();
   const account = live && signedIn;
 
@@ -145,6 +158,16 @@ export function SettingsPage() {
               ))}
             </div>
           )}
+        </Section>
+      )}
+
+      {isAdmin && (
+        <Section icon="flag" title="Admin">
+          <Row label="Moderation" note="Reports from users, removing content and suspending accounts. Act on reports within 24 hours.">
+            <Link className="btn" to="/admin">
+              Open
+            </Link>
+          </Row>
         </Section>
       )}
 

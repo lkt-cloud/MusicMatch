@@ -5,6 +5,7 @@ import { Icon, type IconName } from './Icon';
 import { LogoMark } from './LogoMark';
 import { Avatar } from './Avatar';
 import { Onboarding } from './Onboarding';
+import { SuspendedNotice } from '../pages/AdminPage';
 
 const NAV: { to: string; label: string; icon: IconName }[] = [
   { to: '/', label: 'Map', icon: 'map' },
@@ -60,6 +61,7 @@ export function Layout() {
         </div>
       </nav>
       <main className="main">
+        <SuspendedNotice />
         <Outlet />
       </main>
       <InAppBanner />

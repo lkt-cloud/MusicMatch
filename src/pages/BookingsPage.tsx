@@ -255,6 +255,8 @@ function PastCard({ booking: b }: { booking: Booking }) {
 
 const NOTICE_ICON: Record<Notice['kind'], IconName> = {
   review_request: 'star',
+  report: 'flag',
+  report_update: 'flag',
   review: 'star',
   booking_request: 'calendar',
   booking_confirmed: 'calendar',

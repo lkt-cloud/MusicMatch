@@ -102,6 +102,12 @@ export type Booking = {
   status: 'pending' | 'confirmed' | 'declined' | 'cancelled';
   cancelledBy: string | null;
   createdAt: number;
+  /** Where it happens: a studio's address, or whatever the two of them set. Empty if not set yet. */
+  place: string;
+  /** Map point for the place, when known (a studio's address). */
+  placeCoords: [lng: number, lat: number] | null;
+  /** Private key for this booking's "Add to calendar" link. */
+  calendarToken: string;
 };
 
 /** Something we told you about: booking news and reminders (shown in the Bookings tab). */
@@ -112,6 +118,7 @@ export type Notice = {
     | 'booking_confirmed'
     | 'booking_declined'
     | 'booking_cancelled'
+    | 'booking_updated'
     | 'reminder'
     | 'message'
     | 'review_request'

@@ -8,3 +8,7 @@ verify_jwt = false
 [functions.push]
 # Called by the database with a shared secret (x-hook-secret), not by signed-in people.
 verify_jwt = false
+
+[functions.calendar]
+# Opened by calendar apps from an "Add to calendar" link; checks the booking's private token instead.
+verify_jwt = false

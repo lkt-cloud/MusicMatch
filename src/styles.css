@@ -1487,3 +1487,15 @@ button, .nav-link, .chip { -webkit-user-select: none; user-select: none; touch-a
 }
 .suspended-notice > svg { flex: none; color: var(--danger); margin-top: 1px; }
 .suspended-notice a { color: var(--accent); }
+
+/* ---------- Where a session happens, add to calendar ---------- */
+
+.booking-place { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; }
+.booking-place > svg { flex: none; color: var(--accent); }
+.booking-place-text { font-weight: 600; }
+.booking-place .link { font-size: 13px; }
+.booking-place.is-fixed { padding: 10px 12px; border-radius: var(--r-sm); background: var(--bg); border: 1px solid var(--line); }
+.booking-place-edit { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.booking-place-edit input { flex: 1; min-width: 180px; }
+.add-calendar { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.add-calendar-options { display: flex; gap: 8px; flex-wrap: wrap; }

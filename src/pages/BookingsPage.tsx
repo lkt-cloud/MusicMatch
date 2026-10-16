@@ -6,7 +6,8 @@ import { Avatar } from '../components/Avatar';
 import { Icon, type IconName } from '../components/Icon';
 import { SignInPrompt } from '../components/SignInPrompt';
 import { NotifyCard } from '../components/Notify';
-import { BookingEditor, SERVICE_LABEL, formatDay, formatTimes } from '../components/Booking';
+import { BookingEditor, SERVICE_LABEL, directionsUrl, formatDay, formatTimes, googleCalendarUrl } from '../components/Booking';
+import { calendarFileUrl } from '../backend/api';
 import { timeAgo } from '../components/time';
 import { ReviewModal, Stars } from '../components/Reviews';
 
@@ -180,8 +181,10 @@ function BookingCard({ booking: b }: { booking: Booking }) {
           {formatDay(b.start)} · {formatTimes(b)}
         </span>
       </div>
+      <PlaceRow booking={b} />
       {b.note && <p className="booking-card-note">“{b.note}”</p>}
       {error && <p className="field-note is-bad">{error}</p>}
+      {b.status === 'confirmed' && <AddToCalendar booking={b} />}
 
       <div className="booking-card-actions">
         <Link className="btn" to={`/messages/${other.id}`}>
@@ -213,6 +216,106 @@ function BookingCard({ booking: b }: { booking: Booking }) {
         )}
       </div>
     </article>
+  );
+}
+
+/** Where it happens, with directions; either person can set or change it before the session. */
+function PlaceRow({ booking: b }: { booking: Booking }) {
+  const { setBookingPlace } = useStore();
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(b.place);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const canEdit = (b.status === 'pending' || b.status === 'confirmed') && b.end > Date.now();
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await setBookingPlace(b.id, text.trim());
+      setEditing(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Couldn’t save that. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (editing)
+    return (
+      <div className="booking-place-edit">
+        <input
+          className="booking-note"
+          value={text}
+          maxLength={200}
+          autoFocus
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && save()}
+          placeholder="Studio, venue or address"
+          aria-label="Where"
+        />
+        <button className="btn" onClick={() => setEditing(false)} disabled={busy}>
+          Cancel
+        </button>
+        <button className="btn primary" onClick={save} disabled={busy}>
+          Save
+        </button>
+        {error && <p className="field-note is-bad">{error}</p>}
+      </div>
+    );
+
+  return (
+    <div className="booking-place">
+      <Icon name="pin" size={16} />
+      {b.place ? (
+        <>
+          <span className="booking-place-text">{b.place}</span>
+          <a className="link" href={directionsUrl(b.place, b.placeCoords)} target="_blank" rel="noopener">
+            Directions
+          </a>
+        </>
+      ) : (
+        <span className="muted">No place set yet</span>
+      )}
+      {canEdit && (
+        <button
+          className="link muted-link"
+          onClick={() => {
+            setText(b.place);
+            setEditing(true);
+          }}
+        >
+          {b.place ? 'Change' : 'Add place'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Saves the session to Apple Calendar / Outlook (a calendar file) or Google Calendar. */
+function AddToCalendar({ booking: b }: { booking: Booking }) {
+  const { person, live } = useStore();
+  const [open, setOpen] = useState(false);
+  const provider = person(b.providerId);
+  const client = person(b.clientId);
+  return (
+    <div className="add-calendar">
+      <button className="btn" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <Icon name="calendar" size={16} /> Add to calendar
+      </button>
+      {open && (
+        <div className="add-calendar-options">
+          {live && b.calendarToken && (
+            <a className="btn" href={calendarFileUrl(b)} onClick={() => setOpen(false)}>
+              Apple Calendar / Outlook
+            </a>
+          )}
+          <a className="btn" href={googleCalendarUrl(b, provider, client)} target="_blank" rel="noopener" onClick={() => setOpen(false)}>
+            Google Calendar
+          </a>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -255,6 +358,7 @@ function PastCard({ booking: b }: { booking: Booking }) {
 
 const NOTICE_ICON: Record<Notice['kind'], IconName> = {
   review_request: 'star',
+  booking_updated: 'pin',
   report: 'flag',
   report_update: 'flag',
   review: 'star',

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store';
-import type { Creative, Role, ServiceType, SharedSlot, Slot } from '../data/types';
+import type { Booking, Creative, Role, ServiceType, SharedSlot, Slot } from '../data/types';
 import { rolesOf } from '../data/roles';
 import { NotifyCard } from './Notify';
 import { Icon } from './Icon';
@@ -55,6 +55,33 @@ const ROLE_SERVICES: Record<Role, ServiceType[]> = {
   engineer: ['recording', 'mixing'],
   artist: ['performance'],
 };
+
+/** A studio's own address, where their sessions happen (or null if they're not a studio with one). */
+export const studioAddress = (p: Creative) => (rolesOf(p).includes('studio') && p.address ? p.address : null);
+
+const isApple = () => /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent);
+
+/** Directions in the phone's maps app (Apple Maps on iPhone and Mac, Google Maps elsewhere). */
+export function directionsUrl(place: string, coords: [number, number] | null) {
+  const to = coords ? `${coords[1].toFixed(6)},${coords[0].toFixed(6)}` : place;
+  return isApple()
+    ? `https://maps.apple.com/?daddr=${encodeURIComponent(to)}${coords ? `&q=${encodeURIComponent(place)}` : ''}`
+    : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(to)}`;
+}
+
+/** Opens Google Calendar with the session filled in, ready to save. */
+export function googleCalendarUrl(b: Booking, provider: Creative, client: Creative) {
+  const stamp = (t: number) => new Date(t).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const service = SERVICE_LABEL[b.service].replace('Other session', 'Session');
+  const q = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: `${service}: ${provider.name} & ${client.name}`,
+    dates: `${stamp(b.start)}/${stamp(b.end)}`,
+    details: [`${service} booked on Music Match.`, b.note ? `Note: ${b.note}` : '', `${window.location.origin}/bookings`].filter(Boolean).join('\n'),
+    ...(b.place ? { location: b.place } : {}),
+  });
+  return `https://calendar.google.com/calendar/render?${q}`;
+}
 
 /** What you can book someone for, from what they do. */
 export const servicesFor = (p: Creative): ServiceType[] => [...new Set([...rolesOf(p).flatMap((r) => ROLE_SERVICES[r]), 'session' as const])];
@@ -303,15 +330,17 @@ export function BookingRequest({
   const services = servicesFor(provider);
   const [service, setService] = useState<ServiceType>(services[0]);
   const [note, setNote] = useState('');
+  const [place, setPlace] = useState('');
   const [state, setState] = useState<'form' | 'sending' | 'sent'>('form');
   const [error, setError] = useState<string | null>(null);
   const first = provider.name.split(' ')[0];
+  const studio = studioAddress(provider);
 
   const send = async () => {
     setState('sending');
     setError(null);
     try {
-      await requestBooking(slot, provider.id, service, note.trim());
+      await requestBooking(slot, provider.id, service, note.trim(), studio ? '' : place.trim());
       setState('sent');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Couldn’t send that. Try again.');
@@ -365,6 +394,26 @@ export function BookingRequest({
             </button>
           ))}
         </div>
+      </div>
+      <div className="booking-services">
+        <span className="field-label">Where?</span>
+        {studio ? (
+          <div className="booking-place is-fixed">
+            <Icon name="pin" size={16} />
+            <span>
+              {studio} <span className="muted small">({first}’s studio)</span>
+            </span>
+          </div>
+        ) : (
+          <input
+            className="booking-note"
+            value={place}
+            maxLength={200}
+            onChange={(e) => setPlace(e.target.value)}
+            placeholder="Optional, e.g. your studio, a venue or an address. You can also decide later."
+            aria-label="Where"
+          />
+        )}
       </div>
       <textarea
         className="promote-caption"

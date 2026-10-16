@@ -372,6 +372,10 @@ type BookingRow = {
   status: Booking['status'];
   cancelled_by: string | null;
   created_at: string;
+  place?: string;
+  place_lng?: number | null;
+  place_lat?: number | null;
+  calendar_token?: string;
 };
 
 const toBooking = (r: BookingRow): Booking => ({
@@ -386,6 +390,9 @@ const toBooking = (r: BookingRow): Booking => ({
   status: r.status,
   cancelledBy: r.cancelled_by,
   createdAt: Date.parse(r.created_at),
+  place: r.place ?? '',
+  placeCoords: r.place_lng != null && r.place_lat != null ? [r.place_lng, r.place_lat] : null,
+  calendarToken: r.calendar_token ?? '',
 });
 
 /** Your bookings (as provider or client), from the last month onwards. */
@@ -400,10 +407,19 @@ export async function fetchBookings(): Promise<Booking[]> {
   return (data as BookingRow[]).map(toBooking);
 }
 
-export async function requestBooking(slotId: string, service: ServiceType, note: string) {
-  const { error } = await db().rpc('request_booking', { p_slot: slotId, p_service: service, p_note: note });
+export async function requestBooking(slotId: string, service: ServiceType, note: string, place: string) {
+  const { error } = await db().rpc('request_booking', { p_slot: slotId, p_service: service, p_note: note, p_place: place });
   if (error) throw error;
 }
+
+export async function setBookingPlace(id: string, place: string) {
+  const { error } = await db().rpc('set_booking_place', { p_booking: id, p_place: place });
+  if (error) throw error;
+}
+
+/** "Add to calendar" for Apple Calendar, Outlook and others: a calendar file from the `calendar` function. */
+export const calendarFileUrl = (b: Booking) =>
+  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/calendar?id=${b.id}&t=${b.calendarToken}`;
 
 export async function respondBooking(id: string, accept: boolean) {
   const { error } = await db().rpc('respond_booking', { p_booking: id, p_accept: accept });

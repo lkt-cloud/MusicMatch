@@ -79,7 +79,15 @@ export type Store = {
   /** Your bookings, as the provider or the client, soonest first. */
   bookings: Booking[];
   /** Asks a provider for one of their open times. */
-  requestBooking: (slot: { id: string; start: number; end: number }, providerId: string, service: ServiceType, note: string) => Promise<void>;
+  requestBooking: (
+    slot: { id: string; start: number; end: number },
+    providerId: string,
+    service: ServiceType,
+    note: string,
+    place: string,
+  ) => Promise<void>;
+  /** Sets or changes where a booking happens (either person); the other is told. */
+  setBookingPlace: (id: string, place: string) => Promise<void>;
   /** The provider accepts or declines a request. */
   respondBooking: (id: string, accept: boolean) => Promise<void>;
   cancelBooking: (id: string) => Promise<void>;
@@ -261,6 +269,9 @@ function pastSession(): Booking {
     status: 'confirmed',
     cancelledBy: null,
     createdAt: start - 5 * 86_400_000,
+    place: studio.address ?? '',
+    placeCoords: studio.address ? studio.coords : null,
+    calendarToken: '',
   };
 }
 
@@ -309,6 +320,9 @@ function seedBookings(): Booking[] {
       status: 'pending',
       cancelledBy: null,
       createdAt: Date.now(),
+      place: 'The Masquerade, Atlanta',
+      placeCoords: null,
+      calendarToken: '',
     },
     pastSession(),
   ];
@@ -335,7 +349,12 @@ function loadDemo(): DemoState {
         blocked: saved.blocked ?? [],
         slots: saved.slots ?? seedSlots(),
         // Older saved demos get the sample past session too, so there's something to review.
-        bookings: saved.bookings ? (saved.reviews ? saved.bookings : [...saved.bookings, pastSession()]) : seedBookings(),
+        bookings: (saved.bookings ? (saved.reviews ? saved.bookings : [...saved.bookings, pastSession()]) : seedBookings()).map((b) => ({
+          ...b,
+          place: b.place ?? '',
+          placeCoords: b.placeCoords ?? null,
+          calendarToken: b.calendarToken ?? '',
+        })),
         reviews: saved.reviews ?? seedReviews(),
         notices: saved.notices ?? [],
         prefs: saved.prefs ?? DEFAULT_PREFS,
@@ -493,7 +512,9 @@ function DemoProvider({ children }: { children: ReactNode }) {
     setSlotBooked: (id, booked) => setState((s) => ({ ...s, slots: s.slots.map((x) => (x.id === id ? { ...x, booked } : x)) })),
     deleteSlot: (id) => setState((s) => ({ ...s, slots: s.slots.filter((x) => x.id !== id) })),
     bookings: [...state.bookings].sort((a, b) => a.start - b.start),
-    async requestBooking(slot, providerId, service, note) {
+    async requestBooking(slot, providerId, service, note, place) {
+      const provider = CREATIVES.find((c) => c.id === providerId);
+      const studio = provider && (provider.role === 'studio' || provider.alsoRoles.includes('studio')) && provider.address;
       const booking: Booking = {
         id: uid(),
         providerId,
@@ -506,6 +527,9 @@ function DemoProvider({ children }: { children: ReactNode }) {
         status: 'pending',
         cancelledBy: null,
         createdAt: Date.now(),
+        place: studio ? provider.address! : place,
+        placeCoords: studio ? provider.coords : null,
+        calendarToken: '',
       };
       setState((s) => ({ ...s, bookings: [...s.bookings, booking] }));
       // Stand-in for the provider answering, so the demo shows the whole flow.
@@ -530,6 +554,9 @@ function DemoProvider({ children }: { children: ReactNode }) {
         }));
         showBanner({ id: notice.id, title: notice.title, body: notice.body, url: notice.url, actorId: providerId });
       }, 2500);
+    },
+    async setBookingPlace(id, place) {
+      setState((s) => ({ ...s, bookings: s.bookings.map((b) => (b.id === id ? { ...b, place, placeCoords: null } : b)) }));
     },
     async respondBooking(id, accept) {
       setState((s) => ({ ...s, bookings: s.bookings.map((b) => (b.id === id ? { ...b, status: accept ? 'confirmed' : 'declined' } : b)) }));
@@ -1103,9 +1130,13 @@ function LiveProvider({ userId, children }: { userId: string | null; children: R
     },
     bookings,
     // The database finds the provider from the booking time itself.
-    async requestBooking(slot, _providerId, service, note) {
+    async requestBooking(slot, _providerId, service, note, place) {
       if (!requireSignIn('Sign in to book.') || !userId) throw new Error('Sign in to book.');
-      await api.requestBooking(slot.id, service, note);
+      await api.requestBooking(slot.id, service, note, place);
+      refreshBookings();
+    },
+    async setBookingPlace(id, place) {
+      await api.setBookingPlace(id, place);
       refreshBookings();
     },
     async respondBooking(id, accept) {

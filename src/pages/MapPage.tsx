@@ -23,6 +23,10 @@ import { SocialLinks } from '../components/SocialLinks';
 import { GenreChips } from '../components/Genres';
 import { plural, t } from '../i18n';
 
+type Sheet = 'peek' | 'half' | 'full';
+/** The list sits beside the map on wide screens (no sheet to pull up). */
+const isWide = () => window.matchMedia('(min-width: 1024px)').matches;
+
 /** The phone's or browser's region (e.g. ja-JP → JP), for guests' first country. */
 function deviceRegion() {
   try {
@@ -130,7 +134,15 @@ export function MapPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  // The list of creatives: a sheet on phones that rests closed, half-way or full screen.
+  const [sheet, setSheetState] = useState<Sheet>('peek');
+  // What it lists: whoever's on the map right now, or everyone nearby (closest first).
+  const [listMode, setListMode] = useState<'view' | 'all'>('view');
+  const setSheet = (s: Sheet) => {
+    setSheetState(s);
+    // Pulled all the way up, it's for browsing everyone near you without moving the map.
+    if (s === 'full') setListMode('all');
+  };
 
   const nearby = useMemo(
     () =>
@@ -167,6 +179,18 @@ export function MapPage() {
     return splitPromoted(byDistance, (c) => flags.isFeatured(c.id) && sameCity(c));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, flags, me.city]);
+
+  // Everyone in the area who matches the filters, closest to you first.
+  const from = here ?? (located ? me.coords : areaCenter ?? view.center);
+  const { top: allTop, rest: allRest } = useMemo(() => {
+    const byDistance = [...filtered].sort((a, b) => geoDistance(a.coords, from) - geoDistance(b.coords, from));
+    return splitPromoted(byDistance, (c) => flags.isFeatured(c.id) && sameCity(c));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, from[0], from[1], flags, me.city]);
+  const [shownAll, setShownAll] = useState(60);
+  const listTop = listMode === 'all' ? allTop : featuredTop;
+  const listRest = listMode === 'all' ? allRest.slice(0, shownAll) : listed;
+  const listCount = listMode === 'all' ? allTop.length + allRest.length : featuredTop.length + listed.length;
 
   const place = view.whole
     ? countryMode
@@ -205,6 +229,58 @@ export function MapPage() {
   const focus = (c: Creative) => {
     goTo(c.coords, c.country, 320);
     setSelectedId(c.id);
+  };
+
+  /** Picking someone in the list: the sheet drops out of the way so you see them on the map. */
+  const pickFromList = (c: Creative) => {
+    if (sheet === 'full' || sheet === 'half') setSheet('peek');
+    focus(c);
+  };
+
+  // Dragging the sheet's handle: it follows the finger, then settles at the nearest height
+  // (or the next one in the direction of a quick flick).
+  const panelRef = useRef<HTMLElement>(null);
+  const drag = useRef<{ y0: number; t0: number; base: number; id: number } | null>(null);
+  const dragged = useRef(false);
+  const sheetOffset = (s: Sheet, h: number) => (s === 'full' ? 0 : s === 'half' ? h * 0.45 : h - 72);
+  const onSheetDown = (e: React.PointerEvent) => {
+    const panel = panelRef.current;
+    if (!panel || isWide()) return;
+    drag.current = { y0: e.clientY, t0: performance.now(), base: sheetOffset(sheet, panel.offsetHeight), id: e.pointerId };
+    dragged.current = false;
+  };
+  const onSheetMove = (e: React.PointerEvent) => {
+    const d = drag.current;
+    const panel = panelRef.current;
+    if (!d || !panel || e.pointerId !== d.id) return;
+    const dy = e.clientY - d.y0;
+    if (!dragged.current && Math.abs(dy) < 6) return;
+    if (!dragged.current) {
+      dragged.current = true;
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      panel.style.transition = 'none';
+    }
+    const y = Math.max(0, Math.min(panel.offsetHeight - 72, d.base + dy));
+    panel.style.transform = `translateY(${y}px)`;
+  };
+  const onSheetUp = (e: React.PointerEvent) => {
+    const d = drag.current;
+    const panel = panelRef.current;
+    drag.current = null;
+    if (!d || !panel || !dragged.current) return;
+    const h = panel.offsetHeight;
+    const dy = e.clientY - d.y0;
+    const y = d.base + dy;
+    const speed = dy / Math.max(1, performance.now() - d.t0); // px per ms, + is down
+    // Where it was heading: a quick flick carries on a little past where the finger let go.
+    const aim = y + speed * 220;
+    const stops: Sheet[] = ['full', 'half', 'peek'];
+    const next = stops.reduce((best, s) => (Math.abs(sheetOffset(s, h) - aim) < Math.abs(sheetOffset(best, h) - aim) ? s : best));
+    panel.style.transition = '';
+    panel.style.transform = '';
+    setSheet(next);
+    // The click that follows a drag shouldn't also toggle the sheet.
+    window.setTimeout(() => (dragged.current = false), 0);
   };
 
   const locate = () => {
@@ -414,22 +490,49 @@ export function MapPage() {
         )}
       </div>
 
-      <aside className={`panel${sheetOpen ? ' is-open' : ''}`}>
-        <button className="panel-head" onClick={() => setSheetOpen((o) => !o)}>
+      <aside className={`panel is-${sheet}`} ref={panelRef}>
+        <button
+          className="panel-head"
+          onClick={() => !dragged.current && !isWide() && setSheet(sheet === 'peek' ? 'half' : sheet === 'half' ? 'full' : 'half')}
+          onPointerDown={onSheetDown}
+          onPointerMove={onSheetMove}
+          onPointerUp={onSheetUp}
+          onPointerCancel={onSheetUp}
+          aria-expanded={sheet !== 'peek'}
+        >
           <span>
-            <strong>
-              {place}
-            </strong>
+            <strong>{listMode === 'all' ? (located ? t('Near you') : place) : place}</strong>
             <span className="muted small">
-              {plural(featuredTop.length + listed.length, '{n} creative in view', '{n} creatives in view')}
+              {listMode === 'all'
+                ? plural(listCount, '{n} creative within {radius}', '{n} creatives within {radius}', { radius: formatRadius(AREA_MILES) })
+                : plural(listCount, '{n} creative in view', '{n} creatives in view')}
             </span>
           </span>
           <span className="panel-toggle">
             <Icon name="chevron" size={18} />
           </span>
         </button>
+        <div className="panel-mode">
+          <div className="segmented" role="radiogroup" aria-label={t('List')}>
+            {(
+              [
+                ['view', t('On the map')],
+                ['all', t('All nearby')],
+              ] as const
+            ).map(([m, label]) => (
+              <button key={m} type="button" role="radio" aria-checked={listMode === m} className={listMode === m ? 'is-on' : ''} onClick={() => setListMode(m)}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {sheet === 'full' && (
+            <button className="link panel-back" onClick={() => setSheet('peek')}>
+              <Icon name="map" size={15} /> {t('Show map')}
+            </button>
+          )}
+        </div>
         <div className="panel-list">
-          {featuredTop.length + listed.length === 0 && (
+          {listCount === 0 && (
             <p className="empty">
               {areaCenter
                 ? t('No one here. The map shows people within {radius}; search a city to look elsewhere.', { radius: formatRadius(AREA_MILES) })
@@ -439,18 +542,23 @@ export function MapPage() {
               )}
             </p>
           )}
-          {featuredTop.map((c) => (
-            <CreativeRow key={c.id} person={c} promoted active={c.id === selectedId} onClick={() => focus(c)} />
+          {listTop.map((c) => (
+            <CreativeRow key={c.id} person={c} promoted active={c.id === selectedId} onClick={() => pickFromList(c)} />
           ))}
-          {listed.map((c) => (
+          {listRest.map((c) => (
             <CreativeRow
               key={c.id}
               person={c}
               active={c.id === selectedId}
-              onClick={() => focus(c)}
+              onClick={() => pickFromList(c)}
               meta={located ? formatDistance(milesBetween(me.coords, c.coords)) : undefined}
             />
           ))}
+          {listMode === 'all' && allRest.length > shownAll && (
+            <button className="btn block" onClick={() => setShownAll((n) => n + 60)}>
+              {t('Show more')}
+            </button>
+          )}
         </div>
       </aside>
     </div>

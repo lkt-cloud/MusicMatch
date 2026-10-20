@@ -38,6 +38,7 @@ import {
   Play,
   Plus,
   Prohibit,
+  Shuffle,
   SignOut,
   SpeakerHifi,
   SquaresFour,
@@ -98,6 +99,7 @@ const ICONS = {
   download: DownloadSimple,
   pause: Pause,
   file: File,
+  shuffle: Shuffle,
   // Roles & music
   mic: Microphone,
   pads: SquaresFour,

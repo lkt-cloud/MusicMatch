@@ -61,7 +61,7 @@ export type Creative = {
   featuredPostId?: string;
 };
 
-export type PostKind = 'collab' | 'promo' | 'question';
+export type PostKind = 'collab' | 'promo' | 'question' | 'random';
 
 export type Comment = { id: string; authorId: string; text: string; at: number };
 

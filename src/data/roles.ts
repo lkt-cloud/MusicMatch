@@ -52,6 +52,7 @@ export const POST_KINDS: { id: PostKind; label: string; icon: string; hint: stri
   { id: 'collab', get label() { return t('Collab'); }, icon: 'notes', get hint() { return t('Looking to work with someone'); } },
   { id: 'promo', get label() { return t('Self-promo'); }, icon: 'mic', get hint() { return t('New drops, releases, packs, open bookings'); } },
   { id: 'question', get label() { return t('Question'); }, icon: 'chat', get hint() { return t('Ask the community'); } },
+  { id: 'random', get label() { return t('Random'); }, icon: 'shuffle', get hint() { return t('Off-topic, anything goes'); } },
 ];
 
 export const kindLabel = (kind: PostKind) => POST_KINDS.find((k) => k.id === kind)!.label;

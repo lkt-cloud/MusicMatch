@@ -238,7 +238,7 @@ const migrateMe = (me: Creative): Creative => ({ ...me, genres: toGenreIds(me.ge
 
 // Gig, Studio time and Showcase topics were folded into Self-promo.
 const migratePost = (p: Post): Post =>
-  (['collab', 'promo', 'question'] as string[]).includes(p.kind) ? p : { ...p, kind: 'promo' };
+  (['collab', 'promo', 'question', 'random'] as string[]).includes(p.kind) ? p : { ...p, kind: 'promo' };
 
 /** Sample booking times for a few people, starting tomorrow. */
 function seedSlots(): Slot[] {
